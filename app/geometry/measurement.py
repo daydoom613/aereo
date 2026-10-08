@@ -12,7 +12,13 @@ from pyproj import CRS, Transformer
 from pyproj.exceptions import ProjError
 from shapely.geometry.base import BaseGeometry
 
-from app.domain import Measurement, MeasurementMethod, MeasurementStatus, MeasurementType
+from app.domain import (
+    MEASUREMENT_DECIMALS,
+    Measurement,
+    MeasurementMethod,
+    MeasurementStatus,
+    MeasurementType,
+)
 from app.geometry.geodesic import geodesic_area, geodesic_length
 from app.geometry.projection import WGS84, LonLatBox
 
@@ -103,7 +109,7 @@ class FeatureMeasurer:
         return Measurement(
             status=MeasurementStatus.MEASURED,
             type=measurement_type,
-            value=value,
+            value=round(value, MEASUREMENT_DECIMALS),
             method=method,
             projected_crs=projected_crs,
             geometry_repaired=repaired,

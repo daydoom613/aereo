@@ -10,6 +10,9 @@ from pyproj import CRS
 from shapely.geometry import mapping
 from shapely.geometry.base import BaseGeometry
 
+# Measurements are reported to the millimetre: finer than any survey, without float noise.
+MEASUREMENT_DECIMALS = 3
+
 
 class FileFormat(StrEnum):
     KML = "KML"

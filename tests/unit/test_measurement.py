@@ -330,3 +330,10 @@ def test_unexpected_error_is_contained(wgs84_measurer, monkeypatch):
 
     assert measurement.status is MeasurementStatus.FAILED
     assert measurement.reason == "The geometry could not be measured."
+
+
+def test_values_are_rounded_to_the_millimetre(wgs84_measurer):
+    measurement = wgs84_measurer.measure(box(77.0, 13.0, 77.0123456, 13.0123456))
+
+    assert measurement.value == round(measurement.value, 3)
+    assert measurement.value > 1_000_000

@@ -9,6 +9,7 @@ from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
 from app.domain import (
+    MEASUREMENT_DECIMALS,
     FileFormat,
     FileStatus,
     Measurement,
@@ -102,8 +103,8 @@ class FileRepository:
             if measurement_type is not None and total is not None:
                 totals[measurement_type] += total
         return MeasurementSummary(
-            total_area_m2=totals[MeasurementType.AREA],
-            total_length_m=totals[MeasurementType.LENGTH],
+            total_area_m2=round(totals[MeasurementType.AREA], MEASUREMENT_DECIMALS),
+            total_length_m=round(totals[MeasurementType.LENGTH], MEASUREMENT_DECIMALS),
             measured=counts[MeasurementStatus.MEASURED],
             not_required=counts[MeasurementStatus.NOT_REQUIRED],
             unsupported=counts[MeasurementStatus.UNSUPPORTED],
