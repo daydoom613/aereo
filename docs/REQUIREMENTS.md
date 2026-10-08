@@ -110,12 +110,16 @@ by everyone.
 
 ## Exit-gate checks
 
-Run before the checklist was ticked. Results are recorded in the README's Testing section.
+Run on 2026-10-08, before the checklist was ticked.
 
-| Check | How |
-| --- | --- |
-| Tests, lint, type-check | `pytest`, `ruff check .`, `ruff format --check .`, `mypy` |
-| Clean clone | A fresh `git clone` installed and tested inside a `python:3.12-slim` container |
-| Docker | Image built; all endpoints exercised against the running container with the sample files |
-| Accuracy | Sample results compared with the sizes the shapes were drawn at and with `pyproj.Geod` |
-| Brief re-read | The assignment text checked line by line against the running service |
+| Check | How | Result |
+| --- | --- | --- |
+| Tests | `pytest --cov=app` | 213 passed, 99% coverage |
+| Lint and types | `ruff check .`, `ruff format --check .`, `mypy` (strict) | Clean |
+| Clean clone | A fresh `git clone`, installed with `pip install -e ".[dev]"` inside a `python:3.12-slim` container, then lint, mypy and tests | 213 passed on Linux, 99.6% coverage |
+| Docker | Image built from the clean clone; both sample files uploaded to the running container | Both `COMPLETED`; container health check `healthy`; runs as a non-root user |
+| Every endpoint, live | curl against the running container: upload, file info, measurements, pagination, and the 400, 404, 409, 413, 415 and 422 responses | As documented in the README, which quotes these responses |
+| Accuracy | Sample results compared with the sizes the shapes were drawn at, and with `pyproj.Geod` | Equal to the drawn sizes to the millimetre; +0.114% (area) from the ellipsoid, which is the UTM scale factor at that site |
+| Load | A shapefile of 20,000 polygons through the API | Processed in 1.84 s; summed area exactly 50,000,000.0 m2 |
+| Brief re-read | The assignment text checked line by line against the running service | Every item met; R8 needs the repository made public |
+| CI on GitHub | The workflow in `.github/workflows/ci.yml` | Not verified from here: the repository is private. Both of its jobs were reproduced locally (rows 3 and 4). |
