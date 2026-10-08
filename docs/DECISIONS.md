@@ -1,6 +1,6 @@
 # Design decisions
 
-Status: **proposed, not yet implemented.** Each decision gives the choice, the reason, and the
+Status: **implemented.** Each decision gives the choice, the reason, and the
 alternatives that lost. Numbers quoted as "measured" were produced on this project's own library
 versions (GDAL 3.12, PROJ 9.8, GEOS 3.14, GeoPandas 1.2, pyogrio 0.13, Shapely 2.2, pyproj 3.8).
 
@@ -19,7 +19,7 @@ Contents: [Architecture](#architecture) · [D1 Framework](#d1-framework) ·
 app/
   main.py            create_app(): routers, middleware, error handlers, startup
   domain.py          the shared vocabulary: enums and the value objects passed between layers
-  api/               HTTP only: routes, dependencies, middleware, error rendering
+  api/               HTTP only: routes, dependencies, middleware, error rendering, JSON mapping
   schemas/           Pydantic response models (the public JSON shapes)
   services/          FileService: the one entry point the API calls
   readers/           one reader per file format behind a common interface, plus a registry
@@ -121,6 +121,7 @@ reading starts and updated when it ends.
 | Upload rejected (wrong type, too large, unsafe or incomplete archive) | 4xx Problem Details, nothing stored |
 | Upload accepted, content read and measured | 201, `status: COMPLETED` |
 | Upload accepted, content could not be read (for example a corrupt `.shp`) | 201, `status: FAILED`, `error` says why |
+| Upload accepted, then an unexpected error (a bug or an outage) | 500 with no internal detail; the record is marked `FAILED` |
 
 A client that always checks `status` keeps working unchanged if processing later moves to a
 background worker (202 Accepted, then poll the same resource).
@@ -234,8 +235,8 @@ when absent), the record number (FID) for a shapefile.
 - A geometry GDAL returns but GEOS cannot decode becomes a feature without geometry instead of an
   error. Measured: a Placemark holding a bare `<LinearRing>` otherwise aborts the whole layer.
 - Zero features is a valid file: `COMPLETED`, `feature_count: 0`.
-- GDAL error text contains the server's temporary path. The path is replaced by the original
-  filename before the message is stored or returned.
+- GDAL error text contains the server's temporary path. The directory is stripped before the
+  message is stored or returned; what remains is the fixed name the upload was saved under.
 
 Alternative for a missing `.prj`: refuse to measure at all. Rejected because prj-less WGS 84
 shapefiles are common and the assumption is visible in the response. Letting the client state the
@@ -340,6 +341,8 @@ way as the outer ring, so it is not called on whole polygons.
 | No geometry, or an unrecognised type | `UNSUPPORTED` with a reason. |
 
 - **Units** are reported as `m2` and `m` (the UCUM codes), plain ASCII so they survive any console.
+- **Values are rounded to the millimetre** (three decimals). Raw floating-point output such as
+  `99999.99976591449` implies a precision no survey has.
 - **Measurements are planimetric (2D).** Z values are dropped before measuring; the stored geometry
   keeps them. Surface area over terrain is future scope.
 - **Invalid polygons** (for example a self-crossing "bow-tie") are repaired with
@@ -411,7 +414,7 @@ items; `summary` covers the whole file, not the page.
 }
 ```
 
-(Values above are illustrative. The README will carry real output from the running service.)
+(Values above are illustrative. The README carries real output from the running service.)
 
 - A file that is not `COMPLETED` has no measurements: 409 Conflict, with the stored error for a
   `FAILED` file. 409 is the code for a request the resource's current state does not allow.
