@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Sample drone survey</name>
+  <Folder><name>Boundaries</name>
+    <Placemark id="field-a"><name>Field A</name><ExtendedData><Data name="crop"><value>ragi</value></Data><Data name="owner"><value>Asha</value></Data></ExtendedData><Polygon><outerBoundaryIs><LinearRing><coordinates>77.584602871,12.967847203,0 77.584626199,12.970105574,0 77.580941780,12.970142157,0 77.580918484,12.967883780,0 77.584602871,12.967847203,0</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+    <Placemark id="field-b"><name>Field B</name><ExtendedData><Data name="crop"><value>maize</value></Data><Data name="owner"><value>Ravi</value></Data></ExtendedData><Polygon><outerBoundaryIs><LinearRing><coordinates>77.588287245,12.967810574,0 77.588315280,12.970520611,0 77.585551970,12.970548093,0 77.585523965,12.967838050,0 77.588287245,12.967810574,0</coordinates></LinearRing></outerBoundaryIs><innerBoundaryIs><LinearRing><coordinates>77.586914945,12.968727662,0 77.586919615,12.969179336,0 77.586459066,12.969183915,0 77.586454397,12.968732242,0 77.586914945,12.968727662,0</coordinates></LinearRing></innerBoundaryIs></Polygon></Placemark>
+  </Folder>
+  <Folder><name>Flight lines</name>
+    <Placemark id="line-1"><name>Line 1</name><ExtendedData><Data name="altitude_m"><value>120</value></Data></ExtendedData><LineString><coordinates>77.580955759,12.971497183,0 77.590166836,12.971405617,0</coordinates></LineString></Placemark>
+    <Placemark id="line-2"><name>Line 2</name><ExtendedData><Data name="altitude_m"><value>120</value></Data></ExtendedData><LineString><coordinates>77.580965080,12.972400534,0 77.583728420,12.972373096,0 77.583765749,12.975986491,0</coordinates></LineString></Placemark>
+  </Folder>
+  <Folder><name>Ground control</name>
+    <Placemark id="gcp-1"><name>GCP 1</name><Point><coordinates>77.580918484,12.967883780,0</coordinates></Point></Placemark>
+    <Placemark id="gcp-2"><name>GCP 2</name><Point><coordinates>77.588315280,12.970520611,0</coordinates></Point></Placemark>
+    <Placemark id="note-1"><name>Access note</name><MultiGeometry><Point><coordinates>77.589208337,12.967801408,0</coordinates></Point><LineString><coordinates>77.589208337,12.967801408,0 77.589673558,12.968248497,0</coordinates></LineString></MultiGeometry></Placemark>
+  </Folder>
+</Document>
+</kml>
