@@ -94,7 +94,3 @@ class MeasurementsResponse(BaseModel):
     pagination: Pagination
     links: PageLinks
     items: list[FeatureMeasurement]
-
-
-class HealthResponse(BaseModel):
-    status: str

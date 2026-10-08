@@ -55,7 +55,7 @@ Environment variables, or a `.env` file. All are optional.
 | Tests with coverage | `pytest --cov=app --cov-report=term-missing` |
 | Lint and format check | `ruff check . && ruff format --check .` |
 | Type-check | `mypy` |
-| Install git hooks | `pre-commit install` |
+| Install git hooks | `pre-commit install` (with the virtual environment active) |
 | Rebuild the sample files | `python scripts/make_samples.py` |
 
 `make check` runs lint, type-check and tests together where `make` is available. GitHub Actions
