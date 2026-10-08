@@ -19,7 +19,7 @@ from shapely.geometry.base import BaseGeometry
 UTM_43N = 32643
 WGS84 = 4326
 
-# A 1000 m x 1000 m square on the central meridian of UTM zone 43N, near Bengaluru.
+# A 1000 m x 1000 m square on the central meridian of UTM zone 43N (75 E), near Mangaluru.
 SQUARE_1KM = box(500_000, 1_400_000, 501_000, 1_401_000)
 SQUARE_1KM_AREA = 1_000_000.0
 

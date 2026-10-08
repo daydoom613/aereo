@@ -313,6 +313,13 @@ def test_coordinates_outside_the_crs_fail_that_feature_only(wgs84_measurer):
     assert wgs84_measurer.measure(to_wgs84(SQUARE_1KM)).status is MeasurementStatus.MEASURED
 
 
+def test_projected_coordinates_far_outside_the_zone_fail_with_a_reason():
+    measurement = FeatureMeasurer(CRS.from_epsg(UTM_43N)).measure(box(1e15, 1e15, 1e15 + 10, 1e15))
+
+    assert measurement.status is MeasurementStatus.FAILED
+    assert measurement.reason == "The coordinates are outside the valid range of the file's CRS."
+
+
 def test_unexpected_error_is_contained(wgs84_measurer, monkeypatch):
     def explode(*_args):
         raise RuntimeError("library failure")
