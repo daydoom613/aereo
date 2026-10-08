@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geospatial-file-measurement-api"
+version = "1.0.0"
+description = "Upload a Shapefile or KML and get the area and length of its features, measured in a projected CRS."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi~=0.143",
+    "uvicorn[standard]~=0.54",
+    "python-multipart~=0.0.32",
+    "pydantic-settings~=2.15",
+    "sqlalchemy~=2.1",
+    "geopandas~=1.2",
+    "pyogrio~=0.13",
+    "shapely~=2.2",
+    "pyproj~=3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=9.1",
+    "pytest-cov~=7.1",
+    "httpx~=0.28",
+    "ruff~=0.16",
+    "mypy~=2.4",
+    "pre-commit>=4",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "UP", "SIM", "C4", "PT", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["app"]
+
+# These libraries ship no type information; their objects are treated as Any at the boundary.
+[[tool.mypy.overrides]]
+module = ["geopandas.*", "pyogrio.*", "shapely.*", "pandas.*"]
+ignore_missing_imports = true

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Tool caches and reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local runtime data: the SQLite database and anything uploaded
+data/
+*.db
+*.sqlite3
+
+# Local configuration and secrets
+.env
+
+# Editor and assistant tooling
+.vscode/
+.idea/
+.claude/
+
+# The assignment brief belongs to AEREO; it is not republished here
+Geospatial File Measurement API.docx
