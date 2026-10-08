@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Type-check
+        run: mypy
+      - name: Test
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=95
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image
+        run: docker build -t geospatial-file-measurement-api .
+      - name: Start it and wait for the health check
+        run: |
+          docker run -d --name api -p 8000:8000 geospatial-file-measurement-api
+          for attempt in $(seq 1 30); do
+            curl -fs http://127.0.0.1:8000/health && exit 0
+            sleep 1
+          done
+          docker logs api
+          exit 1
+      - name: Upload a sample file
+        run: |
+          curl -fs -F "file=@samples/survey.kml" http://127.0.0.1:8000/api/files/ | grep '"status":"COMPLETED"'
