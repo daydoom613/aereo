@@ -1,0 +1,4 @@
+# Keep line endings identical on every platform (the Docker image is Linux).
+* text=auto eol=lf
+*.zip binary
+*.png binary
