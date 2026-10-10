@@ -202,7 +202,7 @@ All are future scope.
   second shapefile. A missing part is named in the error. Several shapefiles in one archive are
   rejected; multi-layer archives are future scope.
 - **Names from the client are never paths.** The upload and the extracted parts are written under
-  fixed names (`upload.kml`, `layer.shp`, ...) inside a private temporary directory that is always
+  fixed names (`upload.kml`, `shapefile.shp`, ...) inside a private temporary directory that is always
   removed. This makes zip-slip impossible by construction, in addition to the explicit check.
 - **XML attacks:** a KML containing a `DOCTYPE` is rejected. KML does not need one, and without a
   DTD there are no entities to expand (billion laughs) or resolve (XXE).
