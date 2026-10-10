@@ -307,8 +307,9 @@ surveyors correct with a scale factor. It is inherent to UTM, not an error of th
 
 Every measured feature reports two numbers: `value`, in its UTM zone, and `geodesic_value`, the
 same area or length on the WGS 84 ellipsoid (`pyproj.Geod`). `value` stays the answer to the
-brief. `geodesic_value` is there because Google Earth and QGIS's ellipsoidal tools show the
-ellipsoid figure, and without it a reader comparing numbers finds a difference with no explanation.
+brief. `geodesic_value` is there because a GIS that measures on the ellipsoid (QGIS's `$area`, for
+one) shows that figure, and without it a reader comparing numbers finds a difference with no
+explanation. Tools that model the Earth as a sphere will be close to it, not equal.
 Measured on the sample: Field A is 100,000.0 m² on the grid and 99,885.822 m² on the ellipsoid.
 
 For a feature measured with `method: GEODESIC` the two numbers are equal. `summary` carries totals

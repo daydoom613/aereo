@@ -82,7 +82,7 @@ has to be made public (see R8).
     - Tested by: `tests/api/test_file_info.py::test_returns_the_fields_the_brief_requires`
   - [x] `GET /api/files/{id}/measurements/` returns measurements for the features in the file.
     - Implemented in: `app/api/files.py` (`get_measurements`), `app/api/presenters.py` (`measurements_response`)
-    - Tested by: `tests/api/test_measurements.py` (26 tests)
+    - Tested by: `tests/api/test_measurements.py` (38 tests)
 - [x] **R7 Documentation.** A `README.md` containing:
   - [x] Setup: how to run the application locally.
   - [x] API: the available endpoints and example requests/responses (copied from the running service).
@@ -93,6 +93,19 @@ has to be made public (see R8).
     https://github.com/daydoom613/aereo. The repository is private at the time of writing and must
     be made public before the link is shared.*
   - [x] The README mentions learnings and future scope.
+
+## Beyond the brief
+
+The brief allows decisions beyond the minimum. These were added after the checklist above was
+complete; each is recorded in [DECISIONS.md](DECISIONS.md).
+
+| Addition | Why | Tested by |
+| --- | --- | --- |
+| `GET /api/files/`, `DELETE /api/files/{id}/` | The id in the upload response was the only way back to a file, and nothing could be removed | `tests/api/test_file_list.py`, `tests/api/test_file_delete.py` |
+| `geometry_type`, `status` and `include_geometry` on measurements | To ask for only some features, or for the numbers without the coordinates | `tests/api/test_measurements.py::test_geometry_type_narrows_the_items_but_not_the_summary`, `::test_geometry_is_left_out_on_request` |
+| `geodesic_value` next to `value` | A UTM value is a grid value; a GIS measuring on the ellipsoid shows a slightly different figure | `tests/unit/test_measurement.py::test_projected_area_comes_with_the_area_on_the_ellipsoid` |
+| No measurement for an implausible feature under an assumed CRS | A plot drawn in metres with no `.prj` was read as degrees and measured as 21 million km² | `tests/api/test_measurements.py::test_shapefile_without_prj_drawn_in_metres_is_not_measured_as_degrees` |
+| Uploads left `PROCESSING` by a stopped process become `FAILED` at startup | They otherwise stayed `PROCESSING` for ever | `tests/api/test_file_info.py::test_file_left_processing_by_a_stopped_process_is_failed_at_startup` |
 
 ## Readings of ambiguous text
 
@@ -110,16 +123,16 @@ by everyone.
 
 ## Exit-gate checks
 
-Run on 2026-10-08, before the checklist was ticked.
+First run on 2026-10-08, before the checklist was ticked. Run again on 2026-10-10, after the
+additions above; the results below are from the second run.
 
 | Check | How | Result |
 | --- | --- | --- |
-| Tests | `pytest --cov=app` | 213 passed, 99% coverage |
+| Tests | `pytest --cov=app` | 257 passed, 99% coverage |
 | Lint and types | `ruff check .`, `ruff format --check .`, `mypy` (strict) | Clean |
-| Clean clone | A fresh `git clone`, installed with `pip install -e ".[dev]"` inside a `python:3.12-slim` container, then lint, mypy and tests | 213 passed on Linux, 99.6% coverage |
-| Docker | Image built from the clean clone; both sample files uploaded to the running container | Both `COMPLETED`; container health check `healthy`; runs as a non-root user |
-| Every endpoint, live | curl against the running container: upload, file info, measurements, pagination, and the 400, 404, 409, 413, 415 and 422 responses | As documented in the README, which quotes these responses |
-| Accuracy | Sample results compared with the sizes the shapes were drawn at, and with `pyproj.Geod` | Equal to the drawn sizes to the millimetre; +0.114% (area) from the ellipsoid, which is the UTM scale factor at that site |
-| Load | A shapefile of 20,000 polygons through the API | Processed in 1.84 s; summed area exactly 50,000,000.0 m2 |
-| Brief re-read | The assignment text checked line by line against the running service | Every item met; R8 needs the repository made public |
-| CI on GitHub | The workflow in `.github/workflows/ci.yml` | Not verified from here: the repository is private. Both of its jobs were reproduced locally (rows 3 and 4). |
+| Clean clone | GitHub Actions, the `check` job on `main`: a fresh checkout on Ubuntu with Python 3.12, `pip install -e ".[dev]"`, then lint, mypy and tests | Passed |
+| Docker | GitHub Actions, the `docker` job on `main`: the image is built and started, the health check answers, and `samples/survey.kml` is uploaded to it | `COMPLETED` |
+| Endpoints, live | curl against the service started with uvicorn: upload of both samples, measurements with paging and filters, list, delete, and the 400, 404 and 405 responses. The 409, 413, 415 and 422 responses were made live in the first run and are covered by the tests | As documented in the README and [API.md](API.md), which quote these responses |
+| Accuracy | Sample results compared with the sizes the shapes were drawn at, and `value` with `geodesic_value` | Equal to the drawn sizes to the millimetre; +0.114% (area) from the ellipsoid, which is the UTM scale factor at that site |
+| Load | A shapefile of 20,000 polygons through the API | Measured both ways and stored in about 2.1 s; summed area exactly 50,000,000.0 m2 |
+| Brief re-read | The assignment text checked line by line against the service | Every item met; R8 needs the repository made public |

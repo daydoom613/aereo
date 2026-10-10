@@ -109,7 +109,7 @@ class FeatureMeasurer:
             return Measurement.unsupported(_IMPLAUSIBLE_AS_DEGREES, measurement_type)
 
         # Measured for every feature: next to a UTM grid value it is the ground value, which is
-        # what Google Earth and QGIS's ellipsoidal tools report.
+        # what a GIS reports when it measures on the ellipsoid (QGIS's $area, for one).
         geodesic_value = _GEODESIC_MEASURE[measurement_type](in_lon_lat)
         if fits_one_utm_zone:
             epsg = extent.utm_epsg_code()
