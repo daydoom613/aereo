@@ -4,8 +4,7 @@ Source of truth: the assignment document, *Geospatial File Measurement API*. Eac
 or closely paraphrases it. A box is ticked only when the item is implemented **and** has a passing
 test; the lines under each item say where. Test references are `file::test name`.
 
-Status: every requirement is implemented and tested. One submission step is open: the repository
-has to be made public (see R8).
+Status: every requirement is implemented and tested, and the repository is public.
 
 ## Problem statement
 
@@ -88,10 +87,10 @@ has to be made public (see R8).
   - [x] API: the available endpoints and example requests/responses (copied from the running service).
   - [x] Architecture: application structure, file-processing flow, measurement calculation flow, CRS handling.
   - [x] Design Decisions: important technical decisions and alternatives considered.
-- [ ] **R8 Submission.**
-  - [ ] A public GitHub repository, link shared. *The code is pushed to
-    https://github.com/daydoom613/aereo. The repository is private at the time of writing and must
-    be made public before the link is shared.*
+- [x] **R8 Submission.**
+  - [x] A public GitHub repository, link shared: https://github.com/daydoom613/aereo. *Public as
+    of 2026-10-10, checked with a request that carries no credentials. Sharing the link is the act
+    of submitting.*
   - [x] The README mentions learnings and future scope.
 
 ## Beyond the brief
@@ -135,4 +134,4 @@ additions above; the results below are from the second run.
 | Endpoints, live | curl against the service started with uvicorn: upload of both samples, measurements with paging and filters, list, delete, and the 400, 404 and 405 responses. The 409, 413, 415 and 422 responses were made live in the first run and are covered by the tests | As documented in the README and [API.md](API.md), which quote these responses |
 | Accuracy | Sample results compared with the sizes the shapes were drawn at, and `value` with `geodesic_value` | Equal to the drawn sizes to the millimetre; +0.114% (area) from the ellipsoid, which is the UTM scale factor at that site |
 | Load | A shapefile of 20,000 polygons through the API | Measured both ways and stored in about 2.1 s; summed area exactly 50,000,000.0 m2 |
-| Brief re-read | The assignment text checked line by line against the service | Every item met; R8 needs the repository made public |
+| Brief re-read | The assignment text checked line by line against the service | Every item met |
