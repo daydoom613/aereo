@@ -37,7 +37,12 @@ def test_wrong_method_uses_the_same_error_format_and_lists_what_is_allowed(clien
 
     assert response.status_code == 405
     assert response.headers["content-type"] == "application/problem+json"
-    assert response.headers["allow"] == "POST"
+    assert response.headers["allow"] == "GET, POST"
+
+
+def test_allow_header_names_every_method_of_the_path_not_only_the_first_route(client):
+    assert client.put("/api/files/any-id/").headers["allow"] == "DELETE, GET"
+    assert client.post("/api/files/any-id/measurements/").headers["allow"] == "GET"
 
 
 def test_status_titles_follow_the_current_http_standard(upload):
@@ -116,5 +121,7 @@ def test_openapi_documents_exactly_the_paths_of_the_brief(client):
         "/api/files/{file_id}/measurements/",
         "/health",
     ]
-    assert "post" in schema["paths"]["/api/files/"]
+    assert sorted(schema["paths"]["/api/files/"]) == ["get", "post"]
+    assert sorted(schema["paths"]["/api/files/{file_id}/"]) == ["delete", "get"]
+    assert sorted(schema["paths"]["/api/files/{file_id}/measurements/"]) == ["get"]
     assert client.get("/docs").status_code == 200

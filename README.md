@@ -68,10 +68,13 @@ runs the same checks, then builds the Docker image and uploads a sample file to 
 | `POST /api/files/` | Upload and process a file |
 | `GET /api/files/{id}/` | Information about an uploaded file |
 | `GET /api/files/{id}/measurements/` | Measurements for the features in the file |
+| `GET /api/files/` | List uploaded files, newest first |
+| `DELETE /api/files/{id}/` | Delete a file and its measurements |
 | `GET /health` | Liveness check |
 
-The paths are exactly those in the brief. The same paths without the trailing slash also work,
-with no redirect.
+The first three are the brief's, with exactly its paths. List and delete are added so that a file
+can be found again without its id, and removed. The same paths without the trailing slash also
+work, with no redirect.
 
 **Every response below was copied from the running service**, using the files in `samples/`. On
 Windows PowerShell, use `curl.exe` instead of `curl`.
@@ -272,6 +275,63 @@ curl "http://127.0.0.1:8000/api/files/bb1cc07b-8f77-4ab3-8e6a-fe9b88275e2a/measu
 }
 ```
 
+### List files
+
+`GET /api/files/` returns every upload, newest first, including uploads that `FAILED`. Each item
+is the same resource `GET /api/files/{id}/` returns. `limit` (default 100, maximum 1000) and
+`offset` page through them. With both sample files uploaded:
+
+```bash
+curl "http://127.0.0.1:8000/api/files/?limit=1"
+```
+
+```json
+{
+  "pagination": { "limit": 1, "offset": 0, "total": 2 },
+  "links": {
+    "self": "/api/files/?limit=1&offset=0",
+    "next": "/api/files/?limit=1&offset=1",
+    "prev": null
+  },
+  "items": [
+    {
+      "id": "3b0f3ec1-ee7c-40aa-8f69-20d110e7d54e",
+      "filename": "parcels.zip",
+      "format": "SHAPEFILE",
+      "size_bytes": 1071,
+      "status": "COMPLETED",
+      "feature_count": 3,
+      "crs": "EPSG:32643",
+      "crs_assumed": false,
+      "error": null,
+      "created_at": "2026-10-10T10:03:49.378866Z",
+      "processed_at": "2026-10-10T10:03:49.407569Z",
+      "links": {
+        "self": "/api/files/3b0f3ec1-ee7c-40aa-8f69-20d110e7d54e/",
+        "measurements": "/api/files/3b0f3ec1-ee7c-40aa-8f69-20d110e7d54e/measurements/"
+      }
+    }
+  ]
+}
+```
+
+### Delete a file
+
+`DELETE /api/files/{id}/` removes the file record and every feature stored for it. It answers
+204 with no body; the id then answers 404, to a second delete as well.
+
+```bash
+curl -i -X DELETE http://127.0.0.1:8000/api/files/3b0f3ec1-ee7c-40aa-8f69-20d110e7d54e/
+```
+
+```http
+HTTP/1.1 204 No Content
+x-request-id: a2149ad6ffa24e0a9ac33944a9252552
+```
+
+A file that is still `PROCESSING` cannot be deleted (409): the request that uploaded it is still
+writing to it.
+
 ### Errors
 
 Every error has one shape, RFC 9457 Problem Details, sent as `application/problem+json`.
@@ -299,7 +359,8 @@ content-type: application/problem+json
 | --- | --- | --- |
 | 400 | Malformed request: no `file` field, `limit` or `offset` out of range | `The request is not valid.` plus an `errors` list naming `query.limit` |
 | 404 | Unknown file id or path | `No uploaded file has this id.` |
-| 409 | Measurements requested for a file that is not `COMPLETED` | `The file could not be processed, so it has no measurements. ...` |
+| 405 | A method the path does not accept | `Method Not Allowed`, with an `Allow` header naming every method it does accept, for example `DELETE, GET` |
+| 409 | Measurements requested for a file that is not `COMPLETED`, or a delete while it is `PROCESSING` | `The file could not be processed, so it has no measurements. ...` |
 | 413 | Upload larger than the limit | `The upload is larger than the limit of 52428800 bytes.` |
 | 415 | Not a `.zip` or `.kml`, or the content is not what the extension claims | `Only .kml files and .zip archives containing a shapefile are accepted.` |
 | 422 | A real zip or KML that cannot be accepted | `The archive is missing parcels.dbf, which a shapefile requires.` |
@@ -440,7 +501,7 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 
 | Decision | Chosen | Alternatives considered, and why they lost |
 | --- | --- | --- |
-| Framework | FastAPI | Django + DRF: an ORM, admin and migrations that three endpoints do not use. |
+| Framework | FastAPI | Django + DRF: an ORM, admin and migrations that a handful of endpoints do not use. |
 | Reading files | GeoPandas with pyogrio | Fiona (a second GDAL binding, no benefit); a hand-written KML parser (re-implements GDAL); GeoDjango (needs a system GDAL). pyogrio's wheel includes the LIBKML driver, which reads `ExtendedData`; the older KML driver drops it. |
 | Projected CRS | The feature's own UTM zone | **Web Mercator:** +30% area at Delhi. **One global equal-area CRS (EPSG:6933):** exact areas, but lengths measured −11% east-west and +12% north-south at Bengaluru. **One zone per file:** same result for one site, worse across zones. **A custom projection centred on each feature:** the most accurate, but not reproducible by picking an EPSG code. **Geodesic for everything:** most accurate, but the brief asks for projection. |
 | Projected source files | Reprojected to UTM like any other | Trusting any projected CRS: wrong for Web Mercator and other display projections. |
@@ -461,7 +522,7 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 pytest --cov=app --cov-report=term-missing
 ```
 
-228 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
+246 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
 20,000 polygons is uploaded, measured both ways and stored in about 2 seconds on a laptop.
 
 **What the accuracy tests prove.** Test shapes are drawn in metres in a UTM zone, converted to the
@@ -540,7 +601,7 @@ In rough order of value to a drone-survey workflow:
 5. **More inputs:** KMZ, GeoJSON, GeoPackage, and archives holding several shapefiles.
 6. **A features endpoint** with filtering by geometry type, KML folder and bounding box, and
    GeoJSON export.
-7. **`GET /api/files/`** (list, sort, paginate) and **`DELETE /api/files/{id}/`**.
+7. **Sorting and filtering the file list** (by status, format, name or date).
 8. **PostgreSQL / PostGIS** with Alembic migrations, for several workers and spatial queries.
 9. **Authentication, rate limiting and ETags.**
 10. **A map preview page** showing features coloured by measurement status.

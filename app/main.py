@@ -57,9 +57,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Added last means outermost: the request id exists before anything else runs.
     app.add_middleware(UploadSizeLimitMiddleware, max_bytes=settings.max_upload_bytes)
     app.add_middleware(RequestContextMiddleware)
-    register_exception_handlers(app)
-    app.include_router(files.router)
-    app.include_router(health.router)
+    routers = (files.router, health.router)
+    register_exception_handlers(app, routers)
+    for router in routers:
+        app.include_router(router)
     return app
 
 

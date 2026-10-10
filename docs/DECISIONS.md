@@ -67,12 +67,12 @@ flowchart TD
 
 ## D1 Framework
 
-**FastAPI.** The service is one resource with three endpoints. FastAPI gives typed request
+**FastAPI.** The service is one resource with a handful of endpoints. FastAPI gives typed request
 validation, response models, and an OpenAPI page at `/docs` generated from the code, which doubles
 as the reviewer's test console.
 
 Alternative: Django + DRF. It brings an ORM, admin and migrations, all useful in a larger product
-and unused here. More framework to explain for the same three endpoints.
+and unused here. More framework to explain for the same few endpoints.
 
 ## D2 Geospatial stack
 
@@ -130,7 +130,7 @@ background worker (202 Accepted, then poll the same resource).
 
 Alternatives:
 - A background worker now (Celery, RQ, arq): the right design for large surveys, but it adds a
-  broker and a second process to a three-endpoint service. Listed first in future scope.
+  broker and a second process to a single-resource service. Listed first in future scope.
 - Return 422 for an unreadable file and store nothing: simpler, but `status` would then only ever
   be `COMPLETED`, and the contract would have to change when processing becomes asynchronous.
 - A `PENDING` status: it means "queued, not started". Nothing is ever queued here, so the state
@@ -444,6 +444,21 @@ items; `summary` covers the whole file, not the page.
 ```
 
 (Values above are illustrative. The README carries real output from the running service.)
+
+**`GET /api/files/`** and **`DELETE /api/files/{id}/`** are not in the brief. They complete the
+resource: without a list, the id in the upload response is the only way back to a file, and
+without a delete nothing can ever be removed.
+
+- The list is newest first and paged with the same `limit` and `offset` as measurements. Each item
+  is the resource `GET /api/files/{id}/` returns, so a client needs one model for a file.
+- Delete answers 204 with no body, and removes the file and its features in one transaction. An
+  unknown id is 404, so a second delete of the same id is 404 too: the state after it is the same,
+  which is what makes the method idempotent.
+- A file that is still `PROCESSING` cannot be deleted: 409. Requests run on a thread pool, so the
+  upload request can still be writing to that record.
+- Each method is its own route, and the framework's `Allow` header on a 405 names only the first
+  route registered for the path. Measured: `PUT /api/files/{id}/` answered `Allow: GET` once delete
+  existed. The header is now built from every route matching the path: `DELETE, GET`.
 
 - A file that is not `COMPLETED` has no measurements: 409 Conflict, with the stored error for a
   `FAILED` file. 409 is the code for a request the resource's current state does not allow.

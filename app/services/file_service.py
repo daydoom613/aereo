@@ -28,6 +28,14 @@ _UNEXPECTED_FAILURE = "An unexpected error occurred while processing the file."
 
 
 @dataclass(frozen=True)
+class FilePage:
+    """One page of uploaded files, with the number of files there are in all."""
+
+    files: Sequence[UploadedFile]
+    total: int
+
+
+@dataclass(frozen=True)
 class MeasurementPage:
     """One page of a file's measured features, with totals for the whole file."""
 
@@ -74,6 +82,21 @@ class FileService:
         if record is None:
             raise UploadedFileNotFoundError("No uploaded file has this id.")
         return record
+
+    def files(self, limit: int, offset: int) -> FilePage:
+        return FilePage(
+            files=self._repository.files(limit, offset), total=self._repository.count_files()
+        )
+
+    def delete(self, file_id: str) -> None:
+        record = self.get(file_id)
+        if record.status is FileStatus.PROCESSING:
+            # The request that uploaded it is still writing to this record.
+            raise FileNotReadyError(
+                "The file is still being processed. It can be deleted once that has ended."
+            )
+        self._repository.remove(record)
+        logger.info("file deleted", extra={"file_id": file_id})
 
     def measurements(self, file_id: str, limit: int, offset: int) -> MeasurementPage:
         record = self.get(file_id)

@@ -28,7 +28,11 @@ class UploadedFileNotFoundError(AppError):
 
 
 class FileNotReadyError(AppError):
-    """The file exists but was not processed successfully, so it has no measurements."""
+    """The file exists, but its current status does not allow the request.
+
+    A file that was not processed successfully has no measurements; a file still being
+    processed cannot be deleted.
+    """
 
     status_code = 409
 
