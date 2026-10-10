@@ -247,6 +247,49 @@ def test_local_engineering_crs_is_unsupported():
     assert "cannot be related to WGS 84" in measurement.reason
 
 
+# --- a CRS that was assumed, not declared ----------------------------------------------------
+
+
+@pytest.fixture
+def assumed_wgs84_measurer() -> FeatureMeasurer:
+    return FeatureMeasurer(CRS.from_epsg(4326), crs_assumed=True)
+
+
+def test_assumed_crs_is_trusted_for_a_feature_the_size_of_a_survey(assumed_wgs84_measurer):
+    measurement = assumed_wgs84_measurer.measure(to_wgs84(SQUARE_1KM))
+
+    assert measurement.status is MeasurementStatus.MEASURED
+    assert measurement.value == pytest.approx(SQUARE_1KM_AREA, rel=1e-9)
+
+
+def test_assumed_crs_is_not_trusted_for_a_plot_drawn_in_metres(assumed_wgs84_measurer):
+    plot_on_a_site_grid = box(10, 10, 60, 50)  # 50 m x 40 m; as degrees, Nigeria to Kazakhstan
+
+    measurement = assumed_wgs84_measurer.measure(plot_on_a_site_grid)
+
+    assert measurement.status is MeasurementStatus.UNSUPPORTED
+    assert measurement.type is MeasurementType.AREA
+    assert measurement.value is None
+    assert "probably not degrees" in measurement.reason
+
+
+def test_assumed_crs_is_not_trusted_for_a_line_drawn_in_metres(assumed_wgs84_measurer):
+    measurement = assumed_wgs84_measurer.measure(LineString([(0, 0), (30, 40)]))
+
+    assert measurement.status is MeasurementStatus.UNSUPPORTED
+    assert measurement.type is MeasurementType.LENGTH
+
+
+def test_assumed_crs_is_not_trusted_in_a_polar_region(assumed_wgs84_measurer):
+    measurement = assumed_wgs84_measurer.measure(box(20.0, 85.0, 20.5, 85.2))
+
+    assert measurement.status is MeasurementStatus.UNSUPPORTED
+
+
+def test_assumed_crs_still_needs_no_measurement_for_points(assumed_wgs84_measurer):
+    assert assumed_wgs84_measurer.measure(Point(10, 10)).status is MeasurementStatus.NOT_REQUIRED
+
+
 # --- features no single UTM zone fits --------------------------------------------------------
 
 

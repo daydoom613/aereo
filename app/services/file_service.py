@@ -93,7 +93,7 @@ class FileService:
         started = time.perf_counter()
         try:
             dataset = reader.read(source)
-            measurer = FeatureMeasurer(dataset.crs)
+            measurer = FeatureMeasurer(dataset.crs, dataset.crs_assumed)
             measured = [
                 (feature, measurer.measure(feature.geometry)) for feature in dataset.features
             ]

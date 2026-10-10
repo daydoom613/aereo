@@ -47,6 +47,11 @@ _UNKNOWN_CRS = "unknown CRS"
 _UNRELATED_CRS = (
     "The file's CRS cannot be related to WGS 84, so distances on the ground are unknown."
 )
+_IMPLAUSIBLE_AS_DEGREES = (
+    "The file declares no CRS, and read as longitude/latitude this feature would be wider than "
+    "1 degree or in a polar region, so its coordinates are probably not degrees. Add the .prj "
+    "file to the archive."
+)
 _OUT_OF_RANGE = "The coordinates are outside the valid range of the file's CRS."
 _UNMEASURABLE = "The geometry could not be measured."
 
@@ -54,8 +59,9 @@ _UNMEASURABLE = "The geometry could not be measured."
 class FeatureMeasurer:
     """Measures the features of one file. Holds the coordinate transformers for that file's CRS."""
 
-    def __init__(self, source_crs: CRS | None) -> None:
+    def __init__(self, source_crs: CRS | None, crs_assumed: bool = False) -> None:
         self._source_crs = source_crs
+        self._crs_assumed = crs_assumed
         self._to_wgs84: Transformer | None = None
         self._crs_problem = _UNKNOWN_CRS
         self._to_utm: dict[int, Transformer] = {}
@@ -100,6 +106,10 @@ class FeatureMeasurer:
             projected = _transformed(flat, self._utm_transformer(epsg))
             value = _PLANAR_MEASURE[measurement_type](projected)
             method, projected_crs = MeasurementMethod.PROJECTED, f"EPSG:{epsg}"
+        elif self._crs_assumed:
+            # An assumed CRS is trusted only while the result looks like survey data. On a grid
+            # in metres anything over a metre wide reads as over a degree, and lands here.
+            return Measurement.unsupported(_IMPLAUSIBLE_AS_DEGREES, measurement_type)
         else:
             value = _GEODESIC_MEASURE[measurement_type](_transformed(flat, to_wgs84))
             method, projected_crs = MeasurementMethod.GEODESIC, None
