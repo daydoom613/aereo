@@ -2,8 +2,12 @@
 
 from datetime import datetime
 
+from fastapi.testclient import TestClient
 from shapely.geometry import Point, box
 
+from app.domain import FileFormat
+from app.main import create_app
+from app.repositories.file_repository import FileRepository
 from tests.support import kml_document, placemark
 
 SURVEY_KML = kml_document(placemark(box(77.0, 13.0, 77.01, 13.01)), placemark(Point(77.0, 13.0)))
@@ -68,3 +72,20 @@ def test_unknown_id_is_404(client):
 
 def test_malformed_id_is_404_not_a_validation_error(client):
     assert client.get("/api/files/abc123/").status_code == 404
+
+
+def test_file_left_processing_by_a_stopped_process_is_failed_at_startup(settings):
+    with (
+        TestClient(create_app(settings)) as stopped,
+        stopped.app.state.session_factory() as session,
+    ):
+        file_id = FileRepository(session).add_processing("survey.kml", FileFormat.KML, 10).id
+
+    with TestClient(create_app(settings)) as restarted:
+        body = restarted.get(f"/api/files/{file_id}/").json()
+        measurements = restarted.get(f"/api/files/{file_id}/measurements/")
+
+    assert body["status"] == "FAILED"
+    assert body["error"] == "Processing was interrupted before it finished. Upload the file again."
+    assert body["processed_at"] is not None
+    assert measurements.status_code == 409

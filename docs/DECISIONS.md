@@ -134,8 +134,10 @@ Alternatives:
 - A `PENDING` status: it means "queued, not started". Nothing is ever queued here, so the state
   would be unreachable. It arrives together with the queue.
 
-Known limit: if the process is killed mid-upload, the record stays `PROCESSING`. A queue with
-retries is the real fix.
+**A process killed mid-upload** leaves its record as `PROCESSING`. Because processing only ever
+runs inside a request, any such record found at startup is marked `FAILED` with a reason asking for
+the file to be uploaded again. This relies on the service being one process ([D5](#d5-persistence-and-data-model));
+a queue with retries is the real fix.
 
 ## D5 Persistence and data model
 
@@ -202,7 +204,7 @@ All are future scope.
   second shapefile. A missing part is named in the error. Several shapefiles in one archive are
   rejected; multi-layer archives are future scope.
 - **Names from the client are never paths.** The upload and the extracted parts are written under
-  fixed names (`upload.kml`, `layer.shp`, ...) inside a private temporary directory that is always
+  fixed names (`upload.kml`, `shapefile.shp`, ...) inside a private temporary directory that is always
   removed. This makes zip-slip impossible by construction, in addition to the explicit check.
 - **XML attacks:** a KML containing a `DOCTYPE` is rejected. KML does not need one, and without a
   DTD there are no entities to expand (billion laughs) or resolve (XXE).

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.domain import (
@@ -22,6 +22,8 @@ from app.models import Feature, UploadedFile
 from app.models.tables import utc_now
 
 MeasuredFeature = tuple[SourceFeature, Measurement]
+
+_INTERRUPTED = "Processing was interrupted before it finished. Upload the file again."
 
 
 class FileRepository:
@@ -68,6 +70,19 @@ class FileRepository:
         record.status = FileStatus.FAILED
         record.error = error
         record.processed_at = utc_now()
+        self._session.commit()
+
+    def fail_interrupted(self) -> None:
+        """Mark files still PROCESSING as FAILED. Called at startup, when nothing can be running.
+
+        Processing happens inside the upload request, so a record left PROCESSING belongs to a
+        process that stopped before it finished.
+        """
+        self._session.execute(
+            update(UploadedFile)
+            .where(UploadedFile.status == FileStatus.PROCESSING)
+            .values(status=FileStatus.FAILED, error=_INTERRUPTED, processed_at=utc_now())
+        )
         self._session.commit()
 
     def get(self, file_id: str) -> UploadedFile | None:
