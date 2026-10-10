@@ -19,6 +19,7 @@ from app.api.presenters import (
     files_response,
     measurements_response,
 )
+from app.domain import FeatureFilter, GeometryType, MeasurementStatus
 from app.schemas.files import FileResponse, FilesResponse, MeasurementsResponse
 from app.schemas.problem import ProblemDetails
 
@@ -89,21 +90,41 @@ def delete_file(file_id: str, service: FileServiceDependency) -> Response:
     return Response(status_code=204)
 
 
-@router.get("/{file_id}/measurements", include_in_schema=False)
+@router.get("/{file_id}/measurements", include_in_schema=False, response_model_exclude_unset=True)
 @router.get(
     "/{file_id}/measurements/",
     summary="Get the measurements of a file's features",
     responses=_problems(400, 404, 409),
+    # An item's geometry is left unset, and so out of the response, when the request declines it.
+    response_model_exclude_unset=True,
 )
 def get_measurements(
     file_id: str,
     service: FileServiceDependency,
     limit: Limit = DEFAULT_PAGE_SIZE,
     offset: Offset = 0,
+    geometry_type: Annotated[
+        list[GeometryType] | None,
+        Query(description="Only features of this geometry type. Repeat it to allow several."),
+    ] = None,
+    status: Annotated[
+        list[MeasurementStatus] | None,
+        Query(description="Only features with this measurement status. Repeat it for several."),
+    ] = None,
+    include_geometry: Annotated[
+        bool, Query(description="`false` leaves `geometry` out of every item.")
+    ] = True,
 ) -> MeasurementsResponse:
     """One item per feature: its index, id, geometry, CRS and properties, with its measurement.
 
-    Polygons report area in square metres and lines report length in metres. `summary` covers
-    the whole file; `limit` and `offset` page through `items`.
+    Polygons report area in square metres and lines report length in metres. `limit` and
+    `offset` page through `items`. `geometry_type` and `status` narrow `items`, and
+    `pagination.total` counts what they leave; `summary` always covers the whole file.
     """
-    return measurements_response(service.measurements(file_id, limit, offset), limit, offset)
+    # dict.fromkeys drops a value given twice and keeps the order they were given in.
+    feature_filter = FeatureFilter(
+        geometry_types=tuple(dict.fromkeys(geometry_type or ())),
+        statuses=tuple(dict.fromkeys(status or ())),
+    )
+    page = service.measurements(file_id, limit, offset, feature_filter, include_geometry)
+    return measurements_response(page, limit, offset, feature_filter, include_geometry)

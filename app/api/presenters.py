@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict
+from urllib.parse import urlencode
 
+from app.domain import FeatureFilter
 from app.models import Feature, UploadedFile
 from app.schemas.files import (
     FeatureMeasurement,
@@ -63,23 +65,36 @@ def files_response(page: FilePage, limit: int, offset: int) -> FilesResponse:
     )
 
 
-def measurements_response(page: MeasurementPage, limit: int, offset: int) -> MeasurementsResponse:
+def measurements_response(
+    page: MeasurementPage,
+    limit: int,
+    offset: int,
+    feature_filter: FeatureFilter,
+    include_geometry: bool,
+) -> MeasurementsResponse:
     file = page.file
-    total = file.feature_count or 0
 
     def page_url(page_offset: int) -> str:
-        return f"{measurements_path(file.id)}?limit={limit}&offset={page_offset}"
+        # Every option of the request is repeated, so a link leads to the same view of the file.
+        query: list[tuple[str, str | int]] = [("limit", limit), ("offset", page_offset)]
+        query += [("geometry_type", chosen.value) for chosen in feature_filter.geometry_types]
+        query += [("status", chosen.value) for chosen in feature_filter.statuses]
+        if not include_geometry:
+            query.append(("include_geometry", "false"))
+        return f"{measurements_path(file.id)}?{urlencode(query)}"
 
-    next_url, prev_url = _neighbours(page_url, limit, offset, total)
+    next_url, prev_url = _neighbours(page_url, limit, offset, page.matching)
     return MeasurementsResponse(
         file_id=file.id,
         crs=file.crs,
         summary=MeasurementSummaryResponse(**asdict(page.summary)),
-        pagination=Pagination(limit=limit, offset=offset, total=total),
+        pagination=Pagination(limit=limit, offset=offset, total=page.matching),
         links=PageLinks(
             self=page_url(offset), file=file_path(file.id), next=next_url, prev=prev_url
         ),
-        items=[_feature_measurement(feature, file.crs) for feature in page.features],
+        items=[
+            _feature_measurement(feature, file.crs, include_geometry) for feature in page.features
+        ],
     )
 
 
@@ -92,12 +107,17 @@ def _neighbours(
     return next_url, prev_url
 
 
-def _feature_measurement(feature: Feature, crs: str | None) -> FeatureMeasurement:
+def _feature_measurement(
+    feature: Feature, crs: str | None, include_geometry: bool
+) -> FeatureMeasurement:
+    # A geometry that is not passed stays unset, and the route leaves unset fields out of the
+    # response. That keeps "left out on request" apart from "this feature has no geometry".
+    geometry = {"geometry": feature.geometry} if include_geometry else {}
     return FeatureMeasurement(
+        **geometry,
         feature_index=feature.feature_index,
         source_id=feature.source_id,
         geometry_type=feature.geometry_type,
-        geometry=feature.geometry,
         crs=crs,
         properties=feature.properties,
         measurement=MeasurementResponse(

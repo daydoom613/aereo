@@ -25,6 +25,18 @@ class FileStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class GeometryType(StrEnum):
+    """The geometry types a stored feature can have, under their GeoJSON names."""
+
+    POINT = "Point"
+    MULTI_POINT = "MultiPoint"
+    LINE_STRING = "LineString"
+    MULTI_LINE_STRING = "MultiLineString"
+    POLYGON = "Polygon"
+    MULTI_POLYGON = "MultiPolygon"
+    GEOMETRY_COLLECTION = "GeometryCollection"
+
+
 class MeasurementType(StrEnum):
     AREA = "AREA"
     LENGTH = "LENGTH"
@@ -104,6 +116,14 @@ class GeoDataset:
     features: list[SourceFeature]
     crs: CRS | None
     crs_assumed: bool = False
+
+
+@dataclass(frozen=True)
+class FeatureFilter:
+    """Which of a file's features a request asks for. An empty tuple places no restriction."""
+
+    geometry_types: tuple[GeometryType, ...] = ()
+    statuses: tuple[MeasurementStatus, ...] = ()
 
 
 @dataclass(frozen=True)

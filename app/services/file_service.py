@@ -12,7 +12,7 @@ from tempfile import TemporaryDirectory
 from typing import BinaryIO
 
 from app.core.errors import FileNotReadyError, GeoFileReadError, UploadedFileNotFoundError
-from app.domain import FileFormat, FileStatus, MeasurementSummary
+from app.domain import FeatureFilter, FileFormat, FileStatus, MeasurementSummary
 from app.geometry.measurement import FeatureMeasurer
 from app.geometry.projection import crs_label
 from app.models import Feature, UploadedFile
@@ -37,11 +37,15 @@ class FilePage:
 
 @dataclass(frozen=True)
 class MeasurementPage:
-    """One page of a file's measured features, with totals for the whole file."""
+    """One page of a file's measured features, with totals for the whole file.
+
+    `matching` is the number of features that pass the request's filter, over every page.
+    """
 
     file: UploadedFile
     summary: MeasurementSummary
     features: Sequence[Feature]
+    matching: int
 
 
 class FileService:
@@ -98,7 +102,14 @@ class FileService:
         self._repository.remove(record)
         logger.info("file deleted", extra={"file_id": file_id})
 
-    def measurements(self, file_id: str, limit: int, offset: int) -> MeasurementPage:
+    def measurements(
+        self,
+        file_id: str,
+        limit: int,
+        offset: int,
+        feature_filter: FeatureFilter,
+        include_geometry: bool,
+    ) -> MeasurementPage:
         record = self.get(file_id)
         if record.status is FileStatus.FAILED:
             raise FileNotReadyError(
@@ -109,7 +120,10 @@ class FileService:
         return MeasurementPage(
             file=record,
             summary=self._repository.summary(file_id),
-            features=self._repository.features(file_id, limit, offset),
+            features=self._repository.features(
+                file_id, limit, offset, feature_filter, include_geometry
+            ),
+            matching=self._repository.count_features(file_id, feature_filter),
         )
 
     def _process(self, record: UploadedFile, reader: GeoFileReader, source: Path) -> None:

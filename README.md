@@ -275,6 +275,34 @@ curl "http://127.0.0.1:8000/api/files/bb1cc07b-8f77-4ab3-8e6a-fe9b88275e2a/measu
 }
 ```
 
+**Filtering, and leaving the geometry out.** Three more query parameters:
+
+| Parameter | Effect |
+| --- | --- |
+| `geometry_type` | Only features of that type: `Point`, `LineString`, `Polygon`, their `Multi` forms, or `GeometryCollection`. Repeat it to allow several |
+| `status` | Only features whose measurement has that status. Repeat it to allow several |
+| `include_geometry=false` | Leaves `geometry` out of every item |
+
+`pagination.total` counts the features the filters leave, `summary` still covers the whole file,
+and the page links repeat the filters. With `survey.kml`:
+
+```bash
+curl "http://127.0.0.1:8000/api/files/{id}/measurements/?geometry_type=Polygon"
+curl "http://127.0.0.1:8000/api/files/{id}/measurements/?status=UNSUPPORTED"
+curl "http://127.0.0.1:8000/api/files/{id}/measurements/?include_geometry=false"
+```
+
+| Request | `pagination.total` | Items |
+| --- | --- | --- |
+| `?geometry_type=Polygon` | 2 | `field-a`, `field-b` |
+| `?status=UNSUPPORTED` | 1 | `note-1` |
+| `?geometry_type=Polygon&geometry_type=LineString&status=MEASURED` | 4 | the two fields and the two lines |
+| `?include_geometry=false` | 7 | all seven, in 2,793 bytes where the full response is 3,966 |
+
+A feature keeps its `feature_index` whatever the filter leaves around it. Without its geometry an
+item has no `geometry` key at all, which keeps it apart from a feature that has no geometry
+(`"geometry": null`).
+
 ### List files
 
 `GET /api/files/` returns every upload, newest first, including uploads that `FAILED`. Each item
@@ -357,7 +385,7 @@ content-type: application/problem+json
 
 | Status | When | Example `detail` |
 | --- | --- | --- |
-| 400 | Malformed request: no `file` field, `limit` or `offset` out of range | `The request is not valid.` plus an `errors` list naming `query.limit` |
+| 400 | Malformed request: no `file` field, `limit` or `offset` out of range, an unknown `geometry_type` or `status` | `The request is not valid.` plus an `errors` list naming `query.limit` |
 | 404 | Unknown file id or path | `No uploaded file has this id.` |
 | 405 | A method the path does not accept | `Method Not Allowed`, with an `Allow` header naming every method it does accept, for example `DELETE, GET` |
 | 409 | Measurements requested for a file that is not `COMPLETED`, or a delete while it is `PROCESSING` | `The file could not be processed, so it has no measurements. ...` |
@@ -522,7 +550,7 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 pytest --cov=app --cov-report=term-missing
 ```
 
-246 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
+257 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
 20,000 polygons is uploaded, measured both ways and stored in about 2 seconds on a laptop.
 
 **What the accuracy tests prove.** Test shapes are drawn in metres in a UTM zone, converted to the
@@ -599,8 +627,8 @@ In rough order of value to a drone-survey workflow:
 4. **More measurements:** polygon perimeter, unit conversion (hectares, acres, kilometres), and 3D
    length and surface area using the Z values.
 5. **More inputs:** KMZ, GeoJSON, GeoPackage, and archives holding several shapefiles.
-6. **A features endpoint** with filtering by geometry type, KML folder and bounding box, and
-   GeoJSON export.
+6. **GeoJSON export** of a file's features with their measurements, and filtering by KML folder
+   and bounding box.
 7. **Sorting and filtering the file list** (by status, format, name or date).
 8. **PostgreSQL / PostGIS** with Alembic migrations, for several workers and spatial queries.
 9. **Authentication, rate limiting and ETags.**

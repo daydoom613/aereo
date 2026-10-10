@@ -64,7 +64,11 @@ class FeatureMeasurement(BaseModel):
     source_id: str | None = Field(description="The file's own identifier for the feature, if any.")
     geometry_type: str | None
     geometry: dict[str, Any] | None = Field(
-        description="GeoJSON geometry object with coordinates in the file's CRS."
+        default=None,
+        description=(
+            "GeoJSON geometry object with coordinates in the file's CRS. Null when the feature "
+            "has none. Left out of the item when `include_geometry=false`."
+        ),
     )
     crs: str | None
     properties: dict[str, Any]

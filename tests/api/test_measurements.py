@@ -6,8 +6,9 @@ The accuracy tests upload shapes whose true size is known because they were buil
 import pytest
 import shapely
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon, box, shape
+from sqlalchemy.exc import InvalidRequestError
 
-from app.domain import FileFormat
+from app.domain import FeatureFilter, FileFormat
 from app.repositories.file_repository import FileRepository
 from tests.support import (
     SQUARE_1KM,
@@ -333,6 +334,113 @@ def test_also_works_without_the_trailing_slash(upload, client):
     response = client.get(f"/api/files/{file_id}/measurements", follow_redirects=False)
 
     assert response.status_code == 200
+
+
+# --- filtering, and leaving the geometry out -------------------------------------------------
+
+
+def test_geometry_type_narrows_the_items_but_not_the_summary(measurements):
+    body = measurements("s.kml", SURVEY_KML, geometry_type="Polygon")
+
+    assert [item["geometry_type"] for item in body["items"]] == ["Polygon"]
+    assert body["pagination"]["total"] == 1
+    assert body["summary"] == body["summary"] | {"measured": 2, "not_required": 1}
+
+
+def test_a_filter_given_several_times_allows_each_value(measurements):
+    body = measurements("s.kml", SURVEY_KML, geometry_type=["Point", "Polygon", "Point"])
+
+    assert [item["geometry_type"] for item in body["items"]] == ["Polygon", "Point"]
+    # A feature keeps the index it has in the file, whatever the filter leaves around it.
+    assert [item["feature_index"] for item in body["items"]] == [0, 2]
+    assert body["links"]["self"].endswith(
+        "?limit=100&offset=0&geometry_type=Point&geometry_type=Polygon"
+    )
+
+
+def test_status_narrows_the_items(measurements):
+    not_required = measurements("s.kml", SURVEY_KML, status="NOT_REQUIRED")
+    unsupported = measurements("s.kml", SURVEY_KML, status="UNSUPPORTED")
+
+    assert [item["properties"]["Name"] for item in not_required["items"]] == ["Control point"]
+    assert unsupported["items"] == []
+    assert unsupported["pagination"]["total"] == 0
+
+
+def test_geometry_type_and_status_must_both_match(measurements):
+    lines_and_polygons = ["LineString", "Polygon"]
+
+    measured = measurements(
+        "s.kml", SURVEY_KML, geometry_type=lines_and_polygons, status="MEASURED"
+    )
+    none = measurements("s.kml", SURVEY_KML, geometry_type="Point", status="MEASURED")
+
+    assert measured["pagination"]["total"] == 2
+    assert none["pagination"]["total"] == 0
+
+
+def test_page_links_keep_the_filter_and_the_geometry_choice(upload, client):
+    points = [placemark(Point(77.0 + n / 100, 13.0), name=f"P{n}") for n in range(3)]
+    mixed = kml_document(points[0], placemark(to_wgs84(SQUARE_1KM)), *points[1:])
+    file_id = upload("mixed.kml", mixed).json()["id"]
+    base = f"/api/files/{file_id}/measurements/"
+    options = {"limit": 2, "geometry_type": "Point", "include_geometry": "false"}
+
+    first = client.get(base, params=options).json()
+
+    assert first["pagination"] == {"limit": 2, "offset": 0, "total": 3}
+    assert first["links"]["self"] == (
+        f"{base}?limit=2&offset=0&geometry_type=Point&include_geometry=false"
+    )
+    second = client.get(first["links"]["next"]).json()
+    assert [item["properties"]["Name"] for item in second["items"]] == ["P2"]
+    assert "geometry" not in second["items"][0]
+    assert second["links"]["next"] is None
+    assert client.get(second["links"]["prev"]).json() == first
+
+
+def test_geometry_is_left_out_on_request(measurements):
+    body = measurements("s.kml", SURVEY_KML, include_geometry="false")
+
+    polygon = body["items"][0]
+    assert all("geometry" not in item for item in body["items"])
+    # Everything else about the feature is still there.
+    assert polygon["geometry_type"] == "Polygon"
+    assert polygon["properties"] == {"Name": "Field A", "crop": "ragi"}
+    assert polygon["measurement"]["value"] == pytest.approx(SQUARE_1KM_AREA, rel=1e-6)
+
+
+def test_geometry_is_included_unless_declined(measurements):
+    by_default = measurements("s.kml", SURVEY_KML)["items"][0]
+    asked_for = measurements("s.kml", SURVEY_KML, include_geometry="true")["items"][0]
+
+    assert by_default["geometry"]["type"] == "Polygon"
+    assert asked_for["geometry"] == by_default["geometry"]
+
+
+def test_declined_geometry_is_not_read_from_the_database(upload, client):
+    file_id = upload("s.kml", SURVEY_KML).json()["id"]
+
+    with client.app.state.session_factory() as session:
+        features = FileRepository(session).features(
+            file_id, limit=10, offset=0, feature_filter=FeatureFilter(), include_geometry=False
+        )
+        assert features[0].geometry_type == "Polygon"
+        with pytest.raises(InvalidRequestError):
+            _ = features[0].geometry
+
+
+@pytest.mark.parametrize(
+    "params", [{"geometry_type": "Circle"}, {"status": "DONE"}, {"include_geometry": "maybe"}]
+)
+def test_unknown_filter_value_is_400_and_names_the_parameter(upload, client, params):
+    file_id = upload("s.kml", SURVEY_KML).json()["id"]
+
+    response = client.get(f"/api/files/{file_id}/measurements/", params=params)
+
+    assert response.status_code == 400
+    assert response.headers["content-type"] == "application/problem+json"
+    assert response.json()["errors"][0]["field"].startswith(f"query.{next(iter(params))}")
 
 
 # --- files without measurements --------------------------------------------------------------
