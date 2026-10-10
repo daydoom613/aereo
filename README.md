@@ -73,8 +73,8 @@ runs the same checks, then builds the Docker image and uploads a sample file to 
 The paths are exactly those in the brief. The same paths without the trailing slash also work,
 with no redirect.
 
-**Every response below was copied from the running service** (the Docker image, with the files in
-`samples/`). On Windows PowerShell, use `curl.exe` instead of `curl`.
+**Every response below was copied from the running service**, using the files in `samples/`. On
+Windows PowerShell, use `curl.exe` instead of `curl`.
 
 ### Upload a file
 
@@ -148,6 +148,8 @@ properties, together with its measurement. Two of the seven items are shown in f
   "summary": {
     "total_area_m2": 187499.999,
     "total_length_m": 1700.0,
+    "total_geodesic_area_m2": 187285.37,
+    "total_geodesic_length_m": 1699.027,
     "measured": 4,
     "not_required": 2,
     "unsupported": 1,
@@ -183,6 +185,7 @@ properties, together with its measurement. Two of the seven items are shown in f
         "unit": "m2",
         "method": "PROJECTED",
         "projected_crs": "EPSG:32643",
+        "geodesic_value": 99885.822,
         "status": "MEASURED",
         "reason": null,
         "geometry_repaired": false
@@ -201,6 +204,7 @@ properties, together with its measurement. Two of the seven items are shown in f
         "unit": null,
         "method": null,
         "projected_crs": null,
+        "geodesic_value": null,
         "status": "UNSUPPORTED",
         "reason": "A GeometryCollection has no single area or length.",
         "geometry_repaired": false
@@ -212,15 +216,15 @@ properties, together with its measurement. Two of the seven items are shown in f
 
 All seven results for `survey.kml`:
 
-| # | `source_id` | Geometry | Measurement | `projected_crs` | `status` |
-| --- | --- | --- | --- | --- | --- |
-| 0 | `field-a` | Polygon | 100000.0 m2 | EPSG:32643 | MEASURED |
-| 1 | `field-b` | Polygon with a hole | 87499.999 m2 | EPSG:32643 | MEASURED |
-| 2 | `line-1` | LineString | 1000.0 m | EPSG:32643 | MEASURED |
-| 3 | `line-2` | LineString | 700.0 m | EPSG:32643 | MEASURED |
-| 4 | `gcp-1` | Point | none | | NOT_REQUIRED |
-| 5 | `gcp-2` | Point | none | | NOT_REQUIRED |
-| 6 | `note-1` | GeometryCollection | none | | UNSUPPORTED |
+| # | `source_id` | Geometry | `value` | `projected_crs` | `geodesic_value` | `status` |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | `field-a` | Polygon | 100000.0 m2 | EPSG:32643 | 99885.822 m2 | MEASURED |
+| 1 | `field-b` | Polygon with a hole | 87499.999 m2 | EPSG:32643 | 87399.548 m2 | MEASURED |
+| 2 | `line-1` | LineString | 1000.0 m | EPSG:32643 | 999.427 m | MEASURED |
+| 3 | `line-2` | LineString | 700.0 m | EPSG:32643 | 699.6 m | MEASURED |
+| 4 | `gcp-1` | Point | none | | none | NOT_REQUIRED |
+| 5 | `gcp-2` | Point | none | | none | NOT_REQUIRED |
+| 6 | `note-1` | GeometryCollection | none | | none | UNSUPPORTED |
 
 **Measurement fields**
 
@@ -230,6 +234,7 @@ All seven results for `survey.kml`:
 | `value`, `unit` | The number, rounded to the millimetre, and `m2` or `m` |
 | `method` | `PROJECTED` (measured in `projected_crs`) or `GEODESIC` (measured on the WGS 84 ellipsoid) |
 | `projected_crs` | The UTM zone the feature was measured in |
+| `geodesic_value` | The same measurement on the WGS 84 ellipsoid, in the same unit. This is the figure Google Earth and QGIS's ellipsoidal tools show. Equal to `value` when `method` is `GEODESIC` |
 | `status` | `MEASURED`, `NOT_REQUIRED` (points), `UNSUPPORTED`, or `FAILED` |
 | `reason` | Why a feature was not measured |
 | `geometry_repaired` | `true` when an invalid polygon was repaired before measuring |
@@ -249,6 +254,8 @@ curl "http://127.0.0.1:8000/api/files/bb1cc07b-8f77-4ab3-8e6a-fe9b88275e2a/measu
   "summary": {
     "total_area_m2": 100000.0,
     "total_length_m": 0.0,
+    "total_geodesic_area_m2": 99885.916,
+    "total_geodesic_length_m": 0.0,
     "measured": 3,
     "not_required": 0,
     "unsupported": 0,
@@ -389,6 +396,9 @@ Before measuring, Z values are dropped (measurements are planimetric) and an inv
 repaired with `shapely.make_valid` and flagged. Each feature is measured inside its own error
 boundary: one bad feature becomes `FAILED` with a reason and the rest of the file is unaffected.
 
+Every measured feature carries two numbers: `value`, measured in its UTM zone, and
+`geodesic_value`, the same area or length on the WGS 84 ellipsoid.
+
 ### CRS handling
 
 ```mermaid
@@ -416,6 +426,10 @@ flowchart TD
   reports `method: GEODESIC`. This is the one place the service departs from the letter of the
   brief ("transform to a projected CRS"): for a feature spanning several zones no single
   appropriate projected CRS exists, and forcing one would return a worse number.
+- **Grid and ground.** A UTM value is a grid value: it differs from the size on the ellipsoid by
+  UTM's scale factor, up to about 0.2% in area. Google Earth and QGIS's ellipsoidal tools show the
+  ellipsoid figure, so `geodesic_value` reports it next to `value`. For Field A in the sample the
+  two are 100,000.0 m2 and 99,885.822 m2.
 - **Axis order.** Geometries are x = longitude, y = latitude; every transformer is created with
   `always_xy=True`.
 
@@ -430,6 +444,7 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 | Reading files | GeoPandas with pyogrio | Fiona (a second GDAL binding, no benefit); a hand-written KML parser (re-implements GDAL); GeoDjango (needs a system GDAL). pyogrio's wheel includes the LIBKML driver, which reads `ExtendedData`; the older KML driver drops it. |
 | Projected CRS | The feature's own UTM zone | **Web Mercator:** +30% area at Delhi. **One global equal-area CRS (EPSG:6933):** exact areas, but lengths measured −11% east-west and +12% north-south at Bengaluru. **One zone per file:** same result for one site, worse across zones. **A custom projection centred on each feature:** the most accurate, but not reproducible by picking an EPSG code. **Geodesic for everything:** most accurate, but the brief asks for projection. |
 | Projected source files | Reprojected to UTM like any other | Trusting any projected CRS: wrong for Web Mercator and other display projections. |
+| Grid and ground values | Both: `value` in UTM, `geodesic_value` on the ellipsoid | **UTM only:** differs from Google Earth by up to 0.2% with nothing to explain why. **Ellipsoid only:** the brief asks for projection. **A projection centred on each feature:** one value that matches the ellipsoid, but a parcel drawn as 100 m × 100 m in a UTM file measured 9,988.6 m2, and its CRS has no EPSG code. |
 | Processing | Inside the request | A background worker with 202 Accepted: right for very large files, but adds a broker and a second process. The resource already exposes `status`, so the move would not change its shape. |
 | Unreadable content | 201 with `status: FAILED` | 422 and store nothing: simpler, but `status` could then only ever be `COMPLETED`. |
 | Statuses | `PROCESSING`, `COMPLETED`, `FAILED` | `PENDING`: it means "queued"; nothing is queued, so it would be unreachable. |
@@ -446,8 +461,8 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 pytest --cov=app --cov-report=term-missing
 ```
 
-220 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
-20,000 polygons is uploaded, measured and stored in under 2 seconds on a laptop.
+228 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
+20,000 polygons is uploaded, measured both ways and stored in about 2 seconds on a laptop.
 
 **What the accuracy tests prove.** Test shapes are drawn in metres in a UTM zone, converted to the
 CRS under test, written to a real KML or zipped shapefile, uploaded through HTTP, and the API's
@@ -456,32 +471,33 @@ axis order, zone selection, projection and units. Geodesic results are checked a
 do not come from pyproj: the published WGS 84 quarter-meridian length (10,001,965.729 m), and the
 closed-form surface area of the ellipsoid.
 
-**The sample files, checked three ways.** `samples/survey.kml` was uploaded to the running service.
-"Drawn" is the size the shape was built at, in UTM 43N. "Ellipsoid" is an independent calculation
-with `pyproj.Geod` on the geometry the API returned.
+**The sample files, grid against ground.** `samples/survey.kml` was uploaded to the running
+service. "Drawn" is the size the shape was built at, in UTM 43N.
 
-| Feature | Drawn | API | Ellipsoid | API vs ellipsoid |
+| Feature | Drawn | API `value` | API `geodesic_value` | Difference |
 | --- | --- | --- | --- | --- |
 | Field A | 100,000 m2 | 100,000.000 m2 | 99,885.822 m2 | +0.114% |
 | Field B (with a pond cut out) | 87,500 m2 | 87,499.999 m2 | 87,399.548 m2 | +0.115% |
 | Line 1 | 1,000 m | 1,000.000 m | 999.427 m | +0.057% |
 | Line 2 | 700 m | 700.000 m | 699.600 m | +0.057% |
 
-The API reproduces the grid values to the millimetre. The difference from the ellipsoid is UTM's
+`value` reproduces the grid sizes to the millimetre. Its difference from `geodesic_value` is UTM's
 own scale factor, the grid-to-ground difference surveyors know: at this site, 2.6° east of the
 zone's central meridian, PROJ reports a point scale factor of 1.000571 (1.001143 for area), which
 is exactly the 0.057% and 0.114% in the table. Across a zone the difference ranges from −0.08% on
-the central meridian to +0.20% at the zone edge on the equator.
+the central meridian to +0.20% at the zone edge on the equator. The tests check `geodesic_value`
+against a figure that does not come from pyproj: on a zone's central meridian, a grid length is
+0.9996 of the length on the ellipsoid.
 
 **Reproducing a value in QGIS:** load the file, reproject the layer to the `projected_crs` the API
 reports (for example EPSG:32643), and read `area($geometry)` in the field calculator, which is
-planimetric in the layer's CRS. `$area` uses the project's ellipsoid setting instead, and with the
-WGS 84 ellipsoid corresponds to the "Ellipsoid" column. (The comparison above was made with pyproj;
-QGIS was not part of this build.)
+planimetric in the layer's CRS and corresponds to `value`. `$area` uses the project's ellipsoid
+setting instead, and with the WGS 84 ellipsoid corresponds to `geodesic_value`. (QGIS was not part
+of this build; the figures above are the API's.)
 
 **Also covered:** files already in UTM, in Web Mercator, in US survey feet, and on another datum;
-a missing `.prj` (assumed and flagged), a plot drawn in metres with no `.prj`, and an unknown CRS; features wider than a zone, polar, and
-across the antimeridian; polygons with holes, multi-part and 3D geometries, self-crossing polygons;
+a missing `.prj` (assumed and flagged), a plot drawn in metres with no `.prj`, and an unknown CRS;
+features wider than a zone, polar, and across the antimeridian; polygons with holes, multi-part and 3D geometries, self-crossing polygons;
 zip-slip paths, oversized, encrypted and corrupt archives, an archive that understates its own
 size, macOS archive debris; KML with a `DOCTYPE`; pagination bounds; every error status.
 
@@ -515,8 +531,10 @@ In rough order of value to a drone-survey workflow:
 
 1. **Background processing** (202 Accepted and a worker queue) for large survey files, with retries.
 2. **A client-supplied CRS** at upload for files without a `.prj`, instead of an assumption.
-3. **Grid and ground values side by side:** report the ellipsoidal value and the scale factor next
-   to the UTM value.
+3. **A projection centred on each feature** (for example Lambert azimuthal equal-area) as an
+   alternative to UTM. The projected value itself would then match the ellipsoid, at the cost of a
+   one-off PROJ definition in place of an EPSG code. Reporting the scale factor next to the two
+   values belongs with it.
 4. **More measurements:** polygon perimeter, unit conversion (hectares, acres, kilometres), and 3D
    length and surface area using the Z values.
 5. **More inputs:** KMZ, GeoJSON, GeoPackage, and archives holding several shapefiles.

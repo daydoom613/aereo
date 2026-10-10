@@ -106,20 +106,30 @@ class FileRepository:
                 Feature.measurement_type,
                 func.count(),
                 func.sum(Feature.measurement_value),
+                func.sum(Feature.geodesic_value),
             )
             .where(Feature.file_id == file_id)
             .group_by(Feature.measurement_status, Feature.measurement_type)
         )
         counts = dict.fromkeys(MeasurementStatus, 0)
         totals = dict.fromkeys(MeasurementType, 0.0)
-        for status, measurement_type, count, total in self._session.execute(query):
+        geodesic_totals = dict.fromkeys(MeasurementType, 0.0)
+        for status, measurement_type, count, total, geodesic_total in self._session.execute(query):
             counts[status] += count
-            # Only measured features have a value, so every other group sums to NULL.
-            if measurement_type is not None and total is not None:
-                totals[measurement_type] += total
+            # Only measured features have values, so every other group sums to NULL.
+            if measurement_type is None or total is None or geodesic_total is None:
+                continue
+            totals[measurement_type] += total
+            geodesic_totals[measurement_type] += geodesic_total
         return MeasurementSummary(
             total_area_m2=round(totals[MeasurementType.AREA], MEASUREMENT_DECIMALS),
             total_length_m=round(totals[MeasurementType.LENGTH], MEASUREMENT_DECIMALS),
+            total_geodesic_area_m2=round(
+                geodesic_totals[MeasurementType.AREA], MEASUREMENT_DECIMALS
+            ),
+            total_geodesic_length_m=round(
+                geodesic_totals[MeasurementType.LENGTH], MEASUREMENT_DECIMALS
+            ),
             measured=counts[MeasurementStatus.MEASURED],
             not_required=counts[MeasurementStatus.NOT_REQUIRED],
             unsupported=counts[MeasurementStatus.UNSUPPORTED],
@@ -142,6 +152,7 @@ def _feature_row(
         "measurement_unit": measurement.unit,
         "measurement_method": measurement.method,
         "projected_crs": measurement.projected_crs,
+        "geodesic_value": measurement.geodesic_value,
         "measurement_status": measurement.status,
         "measurement_reason": measurement.reason,
         "geometry_repaired": measurement.geometry_repaired,

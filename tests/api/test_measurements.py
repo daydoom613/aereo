@@ -12,7 +12,9 @@ from app.repositories.file_repository import FileRepository
 from tests.support import (
     SQUARE_1KM,
     SQUARE_1KM_AREA,
+    SQUARE_1KM_GEODESIC_AREA,
     UTM_43N,
+    UTM_CENTRAL_SCALE,
     kml_document,
     layer,
     placemark,
@@ -57,11 +59,13 @@ def test_kml_polygon_area_and_line_length_match_the_known_values(measurements):
     assert area["unit"] == "m2"
     assert area["method"] == "PROJECTED"
     assert area["projected_crs"] == "EPSG:32643"
+    assert area["geodesic_value"] == pytest.approx(SQUARE_1KM_GEODESIC_AREA, rel=1e-6)
     assert area["status"] == "MEASURED"
 
     assert length["type"] == "LENGTH"
     assert length["value"] == pytest.approx(5000.0, rel=1e-6)
     assert length["unit"] == "m"
+    assert length["geodesic_value"] == pytest.approx(5000.0 / UTM_CENTRAL_SCALE, rel=1e-6)
 
     assert point == {
         "type": None,
@@ -69,6 +73,7 @@ def test_kml_polygon_area_and_line_length_match_the_known_values(measurements):
         "unit": None,
         "method": None,
         "projected_crs": None,
+        "geodesic_value": None,
         "status": "NOT_REQUIRED",
         "reason": None,
         "geometry_repaired": False,
@@ -163,6 +168,7 @@ def test_large_feature_is_measured_on_the_ellipsoid_and_says_so(measurements):
     assert measurement["projected_crs"] is None
     assert measurement["status"] == "MEASURED"
     assert measurement["value"] == pytest.approx(1.19e12, rel=0.01)
+    assert measurement["geodesic_value"] == measurement["value"]
 
 
 # --- every feature is identified (requirement 3) ---------------------------------------------
@@ -255,6 +261,8 @@ def test_summary_totals_cover_the_whole_file(measurements):
 
     assert summary["total_area_m2"] == pytest.approx(SQUARE_1KM_AREA, rel=1e-6)
     assert summary["total_length_m"] == pytest.approx(5000.0, rel=1e-6)
+    assert summary["total_geodesic_area_m2"] == pytest.approx(SQUARE_1KM_GEODESIC_AREA, rel=1e-6)
+    assert summary["total_geodesic_length_m"] == pytest.approx(5000.0 / UTM_CENTRAL_SCALE, rel=1e-6)
     assert summary == summary | {"measured": 2, "not_required": 1, "unsupported": 0, "failed": 0}
 
 
@@ -266,6 +274,8 @@ def test_file_with_no_features_has_an_empty_page_and_zero_totals(measurements):
     assert body["summary"] == {
         "total_area_m2": 0.0,
         "total_length_m": 0.0,
+        "total_geodesic_area_m2": 0.0,
+        "total_geodesic_length_m": 0.0,
         "measured": 0,
         "not_required": 0,
         "unsupported": 0,

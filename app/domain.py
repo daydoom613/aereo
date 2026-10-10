@@ -56,6 +56,8 @@ class Measurement:
     value: float | None = None
     method: MeasurementMethod | None = None
     projected_crs: str | None = None
+    # The same quantity on the WGS 84 ellipsoid. Equal to `value` when the method is GEODESIC.
+    geodesic_value: float | None = None
     reason: str | None = None
     geometry_repaired: bool = False
 
@@ -110,6 +112,8 @@ class MeasurementSummary:
 
     total_area_m2: float
     total_length_m: float
+    total_geodesic_area_m2: float
+    total_geodesic_length_m: float
     measured: int
     not_required: int
     unsupported: int

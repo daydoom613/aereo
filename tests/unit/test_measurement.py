@@ -20,7 +20,15 @@ from shapely.geometry import (
 from app.domain import MeasurementMethod, MeasurementStatus, MeasurementType
 from app.geometry.geodesic import geodesic_area, geodesic_length
 from app.geometry.measurement import FeatureMeasurer
-from tests.support import SQUARE_1KM, SQUARE_1KM_AREA, UTM_43N, reproject, to_wgs84
+from tests.support import (
+    SQUARE_1KM,
+    SQUARE_1KM_AREA,
+    SQUARE_1KM_GEODESIC_AREA,
+    UTM_43N,
+    UTM_CENTRAL_SCALE,
+    reproject,
+    to_wgs84,
+)
 
 LINE_5KM = LineString([(500_000, 1_400_000), (503_000, 1_404_000)])  # a 3-4-5 triangle's long side
 
@@ -181,6 +189,57 @@ def test_utm_length_agrees_with_the_ellipsoid_within_utm_scale_error(wgs84_measu
     measurement = wgs84_measurer.measure(on_ellipsoid)
 
     assert measurement.value == pytest.approx(geodesic_length(on_ellipsoid), rel=0.0015)
+
+
+# --- the same measurement on the ellipsoid ---------------------------------------------------
+
+
+def test_projected_area_comes_with_the_area_on_the_ellipsoid(wgs84_measurer):
+    measurement = wgs84_measurer.measure(to_wgs84(SQUARE_1KM))
+
+    assert measurement.method is MeasurementMethod.PROJECTED
+    assert measurement.value == pytest.approx(SQUARE_1KM_AREA, rel=1e-9)
+    assert measurement.geodesic_value == pytest.approx(SQUARE_1KM_GEODESIC_AREA, rel=1e-6)
+
+
+def test_projected_length_comes_with_the_length_on_the_ellipsoid(wgs84_measurer):
+    measurement = wgs84_measurer.measure(to_wgs84(LINE_5KM))
+
+    assert measurement.value == pytest.approx(5000.0, abs=1e-6)
+    assert measurement.geodesic_value == pytest.approx(5000.0 / UTM_CENTRAL_SCALE, rel=1e-6)
+
+
+def test_area_on_the_ellipsoid_excludes_holes(wgs84_measurer):
+    hole = box(500_400, 1_400_400, 500_600, 1_400_600)
+    with_hole = Polygon(SQUARE_1KM.exterior.coords, [hole.exterior.coords])
+
+    measurement = wgs84_measurer.measure(to_wgs84(with_hole))
+
+    on_the_grid = SQUARE_1KM_AREA - 200 * 200
+    assert measurement.geodesic_value == pytest.approx(on_the_grid / UTM_CENTRAL_SCALE**2, rel=1e-6)
+
+
+def test_value_on_the_ellipsoid_does_not_depend_on_the_source_crs(wgs84_measurer):
+    from_degrees = wgs84_measurer.measure(to_wgs84(SQUARE_1KM))
+
+    from_utm = FeatureMeasurer(CRS.from_epsg(UTM_43N)).measure(SQUARE_1KM)
+
+    assert from_utm.geodesic_value == pytest.approx(from_degrees.geodesic_value, abs=0.001)
+
+
+def test_geodesic_measurement_reports_the_same_number_twice(wgs84_measurer):
+    measurement = wgs84_measurer.measure(box(70.0, 10.0, 80.0, 20.0))
+
+    assert measurement.method is MeasurementMethod.GEODESIC
+    assert measurement.geodesic_value == measurement.value
+
+
+@pytest.mark.parametrize(
+    "geometry",
+    [Point(77.0, 13.0), GeometryCollection([Point(77.0, 13.0)]), None],
+)
+def test_unmeasured_feature_has_no_value_on_the_ellipsoid(wgs84_measurer, geometry):
+    assert wgs84_measurer.measure(geometry).geodesic_value is None
 
 
 # --- source CRS other than WGS 84 ------------------------------------------------------------
