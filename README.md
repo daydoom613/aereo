@@ -462,6 +462,16 @@ zone, polar, and across the antimeridian; polygons with holes, multi-part and 3D
 self-crossing polygons; zip-slip paths, oversized, encrypted and corrupt archives, macOS archive
 debris; KML with a `DOCTYPE`; paging and filter bounds; every error status.
 
+**Checked against real files.** The tests build their own files, so on 2026-10-10 four public
+datasets were uploaded as well. They are not kept in this repository.
+
+| File | Result |
+| --- | --- |
+| US Census TIGER/Line 2023 tracts, Washington DC: 206 polygons in NAD83, each carrying its official land and water area | Every tract measured. `geodesic_value` is within 0.0013% of the official area for every tract, and `value` within 0.012% |
+| Natural Earth 1:110m countries: 177 features | Every feature measured, Antarctica and the countries split at the antimeridian included. They total 147.4 million km2; the Earth's land area is about 149 million |
+| Natural Earth 1:110m rivers: 13 lines | Every line measured |
+| Google's KML sample file: 21 features with styles, HTML descriptions, altitude modes and overlays | Every feature read and no errors. The placemark without a geometry is `UNSUPPORTED`. A `GroundOverlay` comes through as the polygon of its bounding box |
+
 ## Learnings
 
 What building this made concrete:

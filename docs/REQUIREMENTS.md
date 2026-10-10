@@ -134,4 +134,5 @@ additions above; the results below are from the second run.
 | Endpoints, live | curl against the service started with uvicorn: upload of both samples, measurements with paging and filters, list, delete, and the 400, 404 and 405 responses. The 409, 413, 415 and 422 responses were made live in the first run and are covered by the tests | As documented in the README and [API.md](API.md), which quote these responses |
 | Accuracy | Sample results compared with the sizes the shapes were drawn at, and `value` with `geodesic_value` | Equal to the drawn sizes to the millimetre; +0.114% (area) from the ellipsoid, which is the UTM scale factor at that site |
 | Load | A shapefile of 20,000 polygons through the API | Measured both ways and stored in about 2.1 s; summed area exactly 50,000,000.0 m2 |
+| Real files | Four public datasets uploaded: US Census tracts for Washington DC, Natural Earth countries and rivers, Google's KML sample file | All 417 features processed, none `FAILED`; `geodesic_value` within 0.0013% of the official area of every Census tract |
 | Brief re-read | The assignment text checked line by line against the service | Every item met |
