@@ -134,8 +134,10 @@ Alternatives:
 - A `PENDING` status: it means "queued, not started". Nothing is ever queued here, so the state
   would be unreachable. It arrives together with the queue.
 
-Known limit: if the process is killed mid-upload, the record stays `PROCESSING`. A queue with
-retries is the real fix.
+**A process killed mid-upload** leaves its record as `PROCESSING`. Because processing only ever
+runs inside a request, any such record found at startup is marked `FAILED` with a reason asking for
+the file to be uploaded again. This relies on the service being one process ([D5](#d5-persistence-and-data-model));
+a queue with retries is the real fix.
 
 ## D5 Persistence and data model
 

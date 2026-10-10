@@ -443,7 +443,7 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 pytest --cov=app --cov-report=term-missing
 ```
 
-213 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
+214 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
 20,000 polygons is uploaded, measured and stored in under 2 seconds on a laptop.
 
 **What the accuracy tests prove.** Test shapes are drawn in metres in a UTM zone, converted to the
