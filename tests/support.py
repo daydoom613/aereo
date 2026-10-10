@@ -22,6 +22,10 @@ WGS84 = 4326
 # A 1000 m x 1000 m square on the central meridian of UTM zone 43N (75 E), near Mangaluru.
 SQUARE_1KM = box(500_000, 1_400_000, 501_000, 1_401_000)
 SQUARE_1KM_AREA = 1_000_000.0
+# On a zone's central meridian, a distance on the UTM grid is 0.9996 of the distance on the
+# ellipsoid. This gives the ellipsoidal size of the shapes above without asking pyproj for it.
+UTM_CENTRAL_SCALE = 0.9996
+SQUARE_1KM_GEODESIC_AREA = SQUARE_1KM_AREA / UTM_CENTRAL_SCALE**2
 
 
 def reproject(geometry: BaseGeometry, source: int | str, target: int | str) -> BaseGeometry:

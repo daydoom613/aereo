@@ -77,6 +77,7 @@ class Feature(Base):
     measurement_unit: Mapped[str | None] = mapped_column(String(8))
     measurement_method: Mapped[MeasurementMethod | None]
     projected_crs: Mapped[str | None] = mapped_column(String(32))
+    geodesic_value: Mapped[float | None]
     measurement_status: Mapped[MeasurementStatus]
     measurement_reason: Mapped[str | None] = mapped_column(Text)
     geometry_repaired: Mapped[bool] = mapped_column(default=False)

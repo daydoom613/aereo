@@ -97,24 +97,30 @@ class FeatureMeasurer:
         if repaired:
             flat = shapely.make_valid(flat)
 
-        extent = LonLatBox(*to_wgs84.transform_bounds(*flat.bounds))
+        in_lon_lat = _transformed(flat, to_wgs84)
+        extent = LonLatBox(*in_lon_lat.bounds)
         if not extent.is_finite:
             return Measurement.failed(measurement_type, _OUT_OF_RANGE)
 
-        if extent.fits_one_utm_zone():
+        fits_one_utm_zone = extent.fits_one_utm_zone()
+        if self._crs_assumed and not fits_one_utm_zone:
+            # An assumed CRS is trusted only while the result looks like survey data. On a grid
+            # in metres anything over a metre wide reads as over a degree, and lands here.
+            return Measurement.unsupported(_IMPLAUSIBLE_AS_DEGREES, measurement_type)
+
+        # Measured for every feature: next to a UTM grid value it is the ground value, which is
+        # what Google Earth and QGIS's ellipsoidal tools report.
+        geodesic_value = _GEODESIC_MEASURE[measurement_type](in_lon_lat)
+        if fits_one_utm_zone:
             epsg = extent.utm_epsg_code()
             projected = _transformed(flat, self._utm_transformer(epsg))
             value = _PLANAR_MEASURE[measurement_type](projected)
             method, projected_crs = MeasurementMethod.PROJECTED, f"EPSG:{epsg}"
-        elif self._crs_assumed:
-            # An assumed CRS is trusted only while the result looks like survey data. On a grid
-            # in metres anything over a metre wide reads as over a degree, and lands here.
-            return Measurement.unsupported(_IMPLAUSIBLE_AS_DEGREES, measurement_type)
         else:
-            value = _GEODESIC_MEASURE[measurement_type](_transformed(flat, to_wgs84))
+            value = geodesic_value
             method, projected_crs = MeasurementMethod.GEODESIC, None
 
-        if not math.isfinite(value):
+        if not (math.isfinite(value) and math.isfinite(geodesic_value)):
             return Measurement.failed(measurement_type, _OUT_OF_RANGE)
         return Measurement(
             status=MeasurementStatus.MEASURED,
@@ -122,6 +128,7 @@ class FeatureMeasurer:
             value=round(value, MEASUREMENT_DECIMALS),
             method=method,
             projected_crs=projected_crs,
+            geodesic_value=round(geodesic_value, MEASUREMENT_DECIMALS),
             geometry_repaired=repaired,
         )
 

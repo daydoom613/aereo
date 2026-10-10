@@ -61,7 +61,9 @@ flowchart TD
 3. Unknown CRS: `UNSUPPORTED`, reason `unknown CRS`.
 4. Drop Z, repair an invalid polygon.
 5. Find the feature's extent in longitude/latitude and pick the measuring method ([D8](#d8-crs-strategy)).
-6. Project and measure, or measure on the ellipsoid. Any error becomes `FAILED` for that feature only.
+6. Measure on the ellipsoid (`geodesic_value`). If one UTM zone fits, also project and measure
+   there (`value`); otherwise `value` is the ellipsoid figure. Any error becomes `FAILED` for that
+   feature only.
 
 ## D1 Framework
 
@@ -175,6 +177,7 @@ database, and not keeping client files at rest is the safer default.
 | `measurement_value`, `measurement_unit` | number and `m2` or `m`; null when not measured |
 | `measurement_method` | `PROJECTED` or `GEODESIC` |
 | `projected_crs` | for example `EPSG:32643`; null for `GEODESIC` |
+| `geodesic_value` | the same measurement on the WGS 84 ellipsoid; null when not measured ([D8](#d8-crs-strategy)) |
 | `measurement_status` | `MEASURED`, `NOT_REQUIRED`, `UNSUPPORTED`, `FAILED` |
 | `measurement_reason` | why it was not measured |
 | `geometry_repaired` | true when an invalid polygon was repaired before measuring |
@@ -183,7 +186,8 @@ The per-feature CRS in API responses is the file's CRS; it is stored once, on th
 
 Alternatives: PostgreSQL (needed for several workers), PostGIS (spatial queries and indexes; nothing
 here queries by location yet), Alembic migrations (needed once the schema changes in production).
-All are future scope.
+All are future scope. Until there are migrations, a database created before a column was added
+(`geodesic_value`, for one) has to be deleted and is recreated at startup.
 
 ## D6 Upload validation
 
@@ -299,6 +303,21 @@ that grid's own value by up to the UTM figures below.
 This is UTM's 0.9996 scale factor: the difference between grid and ellipsoid distance that
 surveyors correct with a scale factor. It is inherent to UTM, not an error of this service.
 
+### Grid and ground values
+
+Every measured feature reports two numbers: `value`, in its UTM zone, and `geodesic_value`, the
+same area or length on the WGS 84 ellipsoid (`pyproj.Geod`). `value` stays the answer to the
+brief. `geodesic_value` is there because Google Earth and QGIS's ellipsoidal tools show the
+ellipsoid figure, and without it a reader comparing numbers finds a difference with no explanation.
+Measured on the sample: Field A is 100,000.0 m² on the grid and 99,885.822 m² on the ellipsoid.
+
+For a feature measured with `method: GEODESIC` the two numbers are equal. `summary` carries totals
+for both.
+
+Cost: one more calculation per feature. The feature is converted to longitude/latitude once, and
+that result gives both its bounding box and the ellipsoid value. Measured: 20,000 polygons are
+uploaded, measured both ways and stored in about 2 seconds.
+
 ### When UTM is not appropriate
 
 A feature is measured **on the ellipsoid** (geodesic, `pyproj.Geod`, WGS 84) instead when no single
@@ -328,7 +347,7 @@ way as the outer ring, so it is not called on whole polygons.
 | Web Mercator (EPSG:3857) | +30% area error at Delhi's latitude, growing towards the poles. |
 | One global equal-area CRS (EPSG:6933) | Areas are exact, lengths are not. Measured at Bengaluru: −11% east-west, +12% north-south. |
 | One UTM zone for the whole file | Same result for single-site files, worse when a file spans zones. Per-feature selection costs nothing extra. |
-| A custom equal-area projection centred on each feature | The most accurate projected option (exact area, no zones). Rejected because the result cannot be reproduced by picking an EPSG code in a GIS; the CRS would be a one-off PROJ string. |
+| A custom equal-area projection centred on each feature | The most accurate projected option (exact area, no zones). Measured with Lambert azimuthal equal-area on the sample: Field A comes out at 99,885.822 m², equal to the ellipsoid value. Rejected for now because the result cannot be reproduced by picking an EPSG code in a GIS (the CRS would be a one-off PROJ string), and because a parcel drawn as 100 m × 100 m in a UTM file would be reported as 9,988.6 m². `geodesic_value` gives the same number without those costs. Future scope. |
 | Geodesic for everything | Most accurate, but the brief asks for projection. Used only as the fallback. |
 | Trust any projected source CRS and measure directly | Wrong for Web Mercator and other display projections. |
 
@@ -358,7 +377,7 @@ way as the outer ring, so it is not called on whole polygons.
   `shapely.make_valid` before measuring, and the feature is flagged `geometry_repaired: true`.
   Measured: an unrepaired bow-tie reports an area of 0.
 - **GeometryCollections are not decomposed.** Adding a polygon's area to a line's length is not a
-  quantity, and reporting two values would break the one-measurement-per-feature shape.
+  quantity, and reporting an area and a length would break the one-measurement-per-feature shape.
 - **One feature never fails the file.** Each feature is measured inside its own error boundary.
 
 ## D10 API contract
@@ -401,6 +420,7 @@ items; `summary` covers the whole file, not the page.
   "crs": "EPSG:4326",
   "summary": {
     "total_area_m2": 1000000.0, "total_length_m": 5000.0,
+    "total_geodesic_area_m2": 1000800.48, "total_geodesic_length_m": 5002.001,
     "measured": 2, "not_required": 1, "unsupported": 0, "failed": 0
   },
   "pagination": {"limit": 100, "offset": 0, "total": 3},
@@ -415,7 +435,7 @@ items; `summary` covers the whole file, not the page.
       "properties": {"Name": "Field A"},
       "measurement": {
         "type": "AREA", "value": 1000000.0, "unit": "m2",
-        "method": "PROJECTED", "projected_crs": "EPSG:32643",
+        "method": "PROJECTED", "projected_crs": "EPSG:32643", "geodesic_value": 1000800.48,
         "status": "MEASURED", "reason": null, "geometry_repaired": false
       }
     }
@@ -489,6 +509,10 @@ validation and routing errors pass through the same handler, so there is no seco
   the known value: a 1000 m × 1000 m square (1,000,000 m²), a 5000 m line.
 - **Cross-check against an independent method.** Projected results are compared with geodesic
   results from `pyproj.Geod`, within the tolerances in [D8](#d8-crs-strategy).
+- **`geodesic_value` with a known answer.** The test shapes sit on a zone's central meridian, where
+  a grid length is 0.9996 of the length on the ellipsoid, so the expected ellipsoid value follows
+  from the drawn size without asking pyproj: 1,000,000 m² on the grid is 1,000,800.48 m² on the
+  ellipsoid.
 - **CRS cases:** already-projected UTM file; Web Mercator file; missing `.prj` (assumed and
   flagged); a plot in metres with no `.prj` (not measured); unknown CRS; a feature wider than 1°; polar; antimeridian; zone 60 at longitude 180.
 - **Geometry cases:** polygon with a hole, MultiPolygon, 3D coordinates, self-crossing polygon,
@@ -504,6 +528,6 @@ validation and routing errors pass through the same handler, so there is no seco
 
 Recorded here so their absence is a decision, not an omission: background processing with a queue;
 keeping the raw upload; KMZ, GeoJSON and multi-shapefile archives; a client-supplied CRS for files
-without one; perimeter, unit conversion and 3D surface measurements; reporting grid and ellipsoidal
-values side by side; KML folder names per feature; a features endpoint with filtering; PostGIS;
+without one; perimeter, unit conversion and 3D surface measurements; a projection centred on each
+feature as an alternative to UTM; KML folder names per feature; a features endpoint with filtering; PostGIS;
 migrations; authentication and rate limiting.

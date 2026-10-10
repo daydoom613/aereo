@@ -84,6 +84,7 @@ def _feature_measurement(feature: Feature, crs: str | None) -> FeatureMeasuremen
             unit=feature.measurement_unit,
             method=feature.measurement_method,
             projected_crs=feature.projected_crs,
+            geodesic_value=feature.geodesic_value,
             status=feature.measurement_status,
             reason=feature.measurement_reason,
             geometry_repaired=feature.geometry_repaired,
