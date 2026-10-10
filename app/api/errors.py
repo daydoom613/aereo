@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from http import HTTPStatus
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
+from starlette.routing import BaseRoute, Match
+from starlette.types import Scope
 
 from app.core.errors import AppError
 
@@ -42,7 +44,24 @@ def problem_response(
     return JSONResponse(body, status_code=status, headers=headers, media_type=PROBLEM_MEDIA_TYPE)
 
 
-def register_exception_handlers(app: FastAPI) -> None:
+def _allowed_methods(routes: Iterable[BaseRoute], scope: Scope) -> str:
+    """Every method the requested path accepts.
+
+    Each method is its own route here, and the framework's Allow header names only the first
+    route registered for the path.
+    """
+    methods: set[str] = set()
+    for route in routes:
+        match, _ = route.matches(scope)
+        if match is Match.PARTIAL:  # the path matches, the method does not
+            methods.update(getattr(route, "methods", None) or ())
+    return ", ".join(sorted(methods))
+
+
+def register_exception_handlers(app: FastAPI, routers: Sequence[APIRouter]) -> None:
+    """`routers` are the routers the app includes, each without a further prefix."""
+    routes = [route for router in routers for route in router.routes]
+
     @app.exception_handler(AppError)
     async def on_app_error(request: Request, error: AppError) -> JSONResponse:
         return problem_response(error.status_code, error.detail, request.url.path)
@@ -50,8 +69,11 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(HTTPException)
     async def on_http_error(request: Request, error: HTTPException) -> JSONResponse:
         # Raised by the framework itself: unknown path, wrong method, oversized body.
+        headers = error.headers
+        if error.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
+            headers = {**(headers or {}), "Allow": _allowed_methods(routes, request.scope)}
         return problem_response(
-            error.status_code, str(error.detail), request.url.path, headers=error.headers
+            error.status_code, str(error.detail), request.url.path, headers=headers
         )
 
     @app.exception_handler(RequestValidationError)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.domain import (
@@ -87,6 +87,27 @@ class FileRepository:
 
     def get(self, file_id: str) -> UploadedFile | None:
         return self._session.get(UploadedFile, file_id)
+
+    def files(self, limit: int, offset: int) -> Sequence[UploadedFile]:
+        """Uploaded files, newest first."""
+        query = (
+            select(UploadedFile)
+            .order_by(UploadedFile.created_at.desc(), UploadedFile.id)
+            .limit(limit)
+            .offset(offset)
+        )
+        return self._session.scalars(query).all()
+
+    def count_files(self) -> int:
+        return self._session.scalar(select(func.count()).select_from(UploadedFile)) or 0
+
+    def remove(self, record: UploadedFile) -> None:
+        """Delete a file and its features, in one transaction."""
+        # The features are deleted here, not by ON DELETE CASCADE: SQLite only enforces foreign
+        # keys on a connection that asks for it.
+        self._session.execute(delete(Feature).where(Feature.file_id == record.id))
+        self._session.delete(record)
+        self._session.commit()
 
     def features(self, file_id: str, limit: int, offset: int) -> Sequence[Feature]:
         query = (

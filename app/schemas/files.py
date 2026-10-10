@@ -95,6 +95,18 @@ class PageLinks(BaseModel):
     prev: str | None
 
 
+class FileListLinks(BaseModel):
+    self: str
+    next: str | None
+    prev: str | None
+
+
+class FilesResponse(BaseModel):
+    pagination: Pagination
+    links: FileListLinks
+    items: list[FileResponse] = Field(description="Newest first.")
+
+
 class MeasurementsResponse(BaseModel):
     file_id: str
     crs: str | None
