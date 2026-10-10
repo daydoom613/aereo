@@ -405,6 +405,9 @@ flowchart TD
 - **Where the CRS comes from.** KML is EPSG:4326 by its standard. A shapefile's CRS comes from its
   `.prj`. Without one, EPSG:4326 is assumed only if every coordinate could be a longitude/latitude,
   and the file is flagged `crs_assumed`; otherwise the CRS is unknown and nothing is measured.
+  An assumed CRS is trusted only for features under 1° wide: a 50 m × 40 m plot drawn in metres
+  also passes the range check, and read as degrees it measured 21 million km², so such a feature
+  is `UNSUPPORTED` with a reason asking for the `.prj`.
 - **The rule applies to every source CRS,** including projected ones. A file already in its UTM
   zone is measured as it is (the transformation is the identity). Anything else is reprojected,
   because "projected" does not mean "fit for measuring": measured here, a parcel in Delhi comes out
@@ -433,7 +436,7 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 | Storage | SQLite through SQLAlchemy; raw upload not kept | PostgreSQL / PostGIS: needed for several workers or spatial queries, neither of which exists yet. |
 | Patterns | Facade (the service), Strategy as a registry (readers), value objects | Factory Method, Template Method, Singleton: class hierarchies or global state for what a dictionary and dependency injection already do. |
 | GeometryCollection | `UNSUPPORTED`, not decomposed | Summing a polygon's area and a line's length: not a quantity. |
-| Missing `.prj` | Assume EPSG:4326 only if coordinates could be degrees, and flag it | Refuse to measure: prj-less WGS 84 shapefiles are common. Guess silently: never. |
+| Missing `.prj` | Assume EPSG:4326 only if coordinates could be degrees, flag it, and measure only features under 1° wide | Refuse to measure: prj-less WGS 84 shapefiles are common. Guess silently: never. Trust the guess at any size: a plot drawn in metres came back larger than Russia. |
 | Error format | RFC 9457 Problem Details | FastAPI's default `{"detail": ...}`: a second, different shape for validation errors. |
 | Units | `m2`, `m` (UCUM codes) | `m²`: unreadable in consoles that are not UTF-8. |
 
@@ -443,7 +446,7 @@ The principles applied are in [docs/ENGINEERING_PRINCIPLES.md](docs/ENGINEERING_
 pytest --cov=app --cov-report=term-missing
 ```
 
-214 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
+220 tests, 99% coverage. Lint (ruff) and strict type-checking (mypy) are clean. A shapefile of
 20,000 polygons is uploaded, measured and stored in under 2 seconds on a laptop.
 
 **What the accuracy tests prove.** Test shapes are drawn in metres in a UTM zone, converted to the
@@ -477,7 +480,7 @@ WGS 84 ellipsoid corresponds to the "Ellipsoid" column. (The comparison above wa
 QGIS was not part of this build.)
 
 **Also covered:** files already in UTM, in Web Mercator, in US survey feet, and on another datum;
-a missing `.prj` (assumed and flagged) and an unknown CRS; features wider than a zone, polar, and
+a missing `.prj` (assumed and flagged), a plot drawn in metres with no `.prj`, and an unknown CRS; features wider than a zone, polar, and
 across the antimeridian; polygons with holes, multi-part and 3D geometries, self-crossing polygons;
 zip-slip paths, oversized, encrypted and corrupt archives, an archive that understates its own
 size, macOS archive debris; KML with a `DOCTYPE`; pagination bounds; every error status.

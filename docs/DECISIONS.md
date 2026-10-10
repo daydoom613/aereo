@@ -229,6 +229,13 @@ when absent), the record number (FID) for a shapefile.
 - No `.prj`: if every coordinate lies within longitude ±180 and latitude ±90, EPSG:4326 is assumed
   and the file is flagged `crs_assumed: true`. Otherwise `crs` is null and area/length are
   `UNSUPPORTED` with reason `unknown CRS`. The service never guesses silently.
+- An assumed CRS is trusted only for features that fit one UTM zone. Small numbers are not always
+  degrees: a 50 m × 40 m plot on a site grid in metres, corners (10, 10) and (60, 50), passes the
+  range check. Measured: read as degrees it came back as 21,272,100 km², larger than Russia. Under
+  an assumed CRS, a feature that would be wider than 1° or polar is therefore `UNSUPPORTED`, with a
+  reason asking for the `.prj`. On a grid in metres that catches everything over a metre wide,
+  while a real field in degrees (about 0.004° wide) is still measured. Cost: a genuine
+  longitude/latitude file without a `.prj` gets no measurement for features wider than 1°.
 - Properties are the DBF row, nulls kept (a shapefile has a fixed schema).
 
 **Both**
@@ -483,7 +490,7 @@ validation and routing errors pass through the same handler, so there is no seco
 - **Cross-check against an independent method.** Projected results are compared with geodesic
   results from `pyproj.Geod`, within the tolerances in [D8](#d8-crs-strategy).
 - **CRS cases:** already-projected UTM file; Web Mercator file; missing `.prj` (assumed and
-  flagged); unknown CRS; a feature wider than 1°; polar; antimeridian; zone 60 at longitude 180.
+  flagged); a plot in metres with no `.prj` (not measured); unknown CRS; a feature wider than 1°; polar; antimeridian; zone 60 at longitude 180.
 - **Geometry cases:** polygon with a hole, MultiPolygon, 3D coordinates, self-crossing polygon,
   Point, GeometryCollection, bare LinearRing, feature without geometry, empty file.
 - **Upload cases:** wrong extension, wrong content, oversized, corrupt zip, zip-slip entry, missing

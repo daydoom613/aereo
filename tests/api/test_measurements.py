@@ -124,6 +124,21 @@ def test_shapefile_without_prj_is_measured_on_the_flagged_assumption(measurement
     assert body["items"][0]["measurement"]["value"] == pytest.approx(SQUARE_1KM_AREA, rel=1e-6)
 
 
+def test_shapefile_without_prj_drawn_in_metres_is_not_measured_as_degrees(upload, client):
+    plot_on_a_site_grid = box(10, 10, 60, 50)  # 50 m x 40 m
+    archive = shapefile_zip(layer([plot_on_a_site_grid]), without=(".prj",))
+
+    file = upload("plot.zip", archive).json()
+    body = client.get(file["links"]["measurements"]).json()
+
+    assert file["status"] == "COMPLETED"
+    assert file["crs_assumed"] is True
+    assert body["items"][0]["measurement"]["status"] == "UNSUPPORTED"
+    assert body["items"][0]["measurement"]["value"] is None
+    assert "probably not degrees" in body["items"][0]["measurement"]["reason"]
+    assert body["summary"]["total_area_m2"] == 0.0
+
+
 def test_shapefile_with_an_unknown_crs_completes_but_measures_nothing(upload, client):
     archive = shapefile_zip(layer([SQUARE_1KM], crs=UTM_43N), without=(".prj",))
 
