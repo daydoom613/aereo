@@ -5,11 +5,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import delete, func, insert, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import ColumnElement, delete, func, insert, select, update
+from sqlalchemy.orm import Session, defer
 
 from app.domain import (
     MEASUREMENT_DECIMALS,
+    FeatureFilter,
     FileFormat,
     FileStatus,
     Measurement,
@@ -109,15 +110,30 @@ class FileRepository:
         self._session.delete(record)
         self._session.commit()
 
-    def features(self, file_id: str, limit: int, offset: int) -> Sequence[Feature]:
+    def features(
+        self,
+        file_id: str,
+        limit: int,
+        offset: int,
+        feature_filter: FeatureFilter,
+        include_geometry: bool,
+    ) -> Sequence[Feature]:
         query = (
             select(Feature)
-            .where(Feature.file_id == file_id)
+            .where(*_matching(file_id, feature_filter))
             .order_by(Feature.feature_index)
             .limit(limit)
             .offset(offset)
         )
+        if not include_geometry:
+            # Not read from the database at all. raiseload turns a later use of it into an
+            # error instead of one extra query per feature.
+            query = query.options(defer(Feature.geometry, raiseload=True))
         return self._session.scalars(query).all()
+
+    def count_features(self, file_id: str, feature_filter: FeatureFilter) -> int:
+        query = select(func.count()).select_from(Feature).where(*_matching(file_id, feature_filter))
+        return self._session.scalar(query) or 0
 
     def summary(self, file_id: str) -> MeasurementSummary:
         """Totals over every feature of the file, computed by the database."""
@@ -156,6 +172,17 @@ class FileRepository:
             unsupported=counts[MeasurementStatus.UNSUPPORTED],
             failed=counts[MeasurementStatus.FAILED],
         )
+
+
+def _matching(file_id: str, feature_filter: FeatureFilter) -> list[ColumnElement[bool]]:
+    """The conditions selecting the features of one file that pass the filter."""
+    conditions = [Feature.file_id == file_id]
+    if feature_filter.geometry_types:
+        names = [geometry_type.value for geometry_type in feature_filter.geometry_types]
+        conditions.append(Feature.geometry_type.in_(names))
+    if feature_filter.statuses:
+        conditions.append(Feature.measurement_status.in_(feature_filter.statuses))
+    return conditions
 
 
 def _feature_row(

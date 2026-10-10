@@ -471,9 +471,25 @@ without a delete nothing can ever be removed.
 - Versioning: none while changes are additive. A breaking change would ship as `/api/v2/...` beside
   the existing paths.
 
-Alternatives: a separate `/features/` endpoint with geometry, leaving measurements lighter (cleaner
-for large files, but a fourth endpoint; future scope); cursor pagination (stable under inserts, but
-a file's features never change after processing, so offsets are stable here).
+**Filters on measurements.** `geometry_type` and `status` narrow `items`; each may be repeated,
+and a feature must match one value of each parameter given. `include_geometry=false` leaves the
+geometry out.
+
+- `pagination.total` counts the features the filters leave, so paging works on the filtered list.
+  `summary` keeps describing the whole file: it answers "what is in this file", and a client
+  filtering to the failures still sees how many features there were.
+- Page links repeat the filters, so `next` leads to the next page of the same view.
+- A feature keeps the `feature_index` it has in the file.
+- Without its geometry an item has no `geometry` key. `"geometry": null` already means the feature
+  has none, and one value should not mean two things. The column is not read from the database
+  either. Measured on the sample, whose shapes have four corners: 2,793 bytes in place of 3,966.
+- An unknown value is 400, and the error lists the values accepted.
+
+Alternatives: a separate `/features/` endpoint with geometry, leaving measurements lighter (a
+sixth endpoint, where one parameter does it); filtering by measurement `type` (the same split as
+geometry type, less direct); narrowing `summary` with the filter (two meanings for one object);
+cursor pagination (stable under inserts, but a file's features never change after processing, so
+offsets are stable here).
 
 ## D11 Errors
 
