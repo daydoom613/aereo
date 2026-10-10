@@ -227,6 +227,10 @@ when absent), the record number (FID) for a shapefile.
   null for a Placemark are omitted, because KML attributes are per-Placemark. The driver's rendering
   hints (`visibility`, `tessellate`, `extrude`, `altitudeMode`, `drawOrder`, `icon`) are left out:
   they describe how Google Earth draws the feature, not the feature.
+- A `GroundOverlay` (an image draped over the map) is delivered by the driver as a feature whose
+  geometry is the polygon of its bounding box, and is measured like any polygon. Measured with
+  Google's KML sample file: its overlay of Mount Etna is reported as 3,359 km². It is left as the
+  driver gives it; a `ScreenOverlay` has no place on the ground and is not a feature.
 
 **Shapefile**
 - CRS comes from the `.prj`.
@@ -555,6 +559,12 @@ validation and routing errors pass through the same handler, so there is no seco
   shape and content type, request id header.
 - Projection selection and measurement are unit-tested without HTTP. Every test gets its own
   temporary database.
+- **Real files, by hand.** The tests build their own files, so four public datasets were uploaded
+  on 2026-10-10: US Census tracts for Washington DC (206 polygons in NAD83), Natural Earth
+  countries and rivers at 1:110m, and Google's KML sample file. All 417 features were processed
+  and none `FAILED`. The Census file carries the official area of each tract, which makes it a
+  reference from outside this project: `geodesic_value` is within 0.0013% of it for every tract,
+  and `value` within 0.012%, which is the UTM scale factor at that longitude.
 
 ## Not built
 
